@@ -27,7 +27,7 @@ COPY --from=build --chown=node:node /workspace/apps/api/package.json ./package.j
 COPY --from=build --chown=node:node /workspace/apps/api/package-lock.json ./package-lock.json
 COPY --from=build --chown=node:node /workspace/apps/api/node_modules ./node_modules
 COPY --from=build --chown=node:node /workspace/apps/api/dist ./dist
-COPY --from=build --chown=node:node /workspace/apps/api/migrations ./migrations
+COPY --from=build --chown=node:node /workspace/apps/api/migrations ./dist/migrations
 COPY --from=build --chown=node:node /workspace/packages/contracts /workspace/packages/contracts
 
 USER node
@@ -37,4 +37,3 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=12 \
   CMD node -e "fetch('http://127.0.0.1:4100/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
 
 CMD ["sh", "-c", "node dist/scripts/migrate.js && exec node dist/src/server.js"]
-
