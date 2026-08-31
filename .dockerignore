@@ -1,0 +1,14 @@
+.git
+.github
+**/node_modules
+**/dist
+**/.expo
+**/.wrangler
+apps/mobile/android
+apps/mobile/ios
+apps/mobile/artifacts
+docs/design-references
+assets/social
+*.log
+.env
+**/.env

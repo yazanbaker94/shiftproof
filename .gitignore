@@ -1,0 +1,43 @@
+# Dependencies and generated output
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.expo/
+**/.expo/
+.wrangler/
+**/.wrangler/
+.vinext/
+**/.vinext/
+
+# Native build output
+apps/mobile/android/
+apps/mobile/ios/
+apps/mobile/artifacts/
+*.apk
+*.aab
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+*.properties.local
+infra/.images.env
+infra/.deploy-state/
+backups/
+
+# Private design inputs (kept locally, not recruiter-facing)
+docs/design-references/
+apps/mobile/.mobile-template-git/
+apps/web/.sites-source-git/
+
+# Test and editor output
+coverage/
+**/coverage/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log

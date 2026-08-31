@@ -1,0 +1,41 @@
+{
+  admin off
+}
+
+:8080 {
+  encode zstd gzip
+
+  log {
+    output stdout
+    format json
+  }
+
+  header {
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    -Server
+  }
+
+  respond /healthz 200
+
+  handle_path /api/* {
+    reverse_proxy api:4100
+  }
+
+  handle /health {
+    reverse_proxy api:4100
+  }
+
+  @hashedAssets path /_next/static/*
+  header @hashedAssets Cache-Control "public, max-age=31536000, immutable"
+
+  @publicAssets path /og.png /favicon.svg
+  header @publicAssets Cache-Control "public, max-age=86400"
+
+  handle {
+    reverse_proxy web:3000
+  }
+}
+

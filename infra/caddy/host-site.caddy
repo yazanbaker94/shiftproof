@@ -1,0 +1,12 @@
+# SHIFTPROOF_HOST_SITE_V1
+shiftproof.swoop.video {
+  encode zstd gzip
+  header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+  reverse_proxy 127.0.0.1:18043 {
+    health_uri /healthz
+    health_interval 20s
+    health_timeout 5s
+  }
+}
+

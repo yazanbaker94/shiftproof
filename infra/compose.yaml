@@ -1,0 +1,137 @@
+name: shiftproof
+
+x-shiftproof-logging: &shiftproof-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    image: postgres:17.11-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-shiftproof}
+      POSTGRES_USER: ${POSTGRES_USER:-shiftproof}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in infra/.env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cpus: "0.25"
+    mem_limit: 320m
+    pids_limit: 128
+    logging: *shiftproof-logging
+
+  api:
+    image: ${SHIFTPROOF_API_IMAGE:-shiftproof-api:local}
+    build:
+      context: ..
+      dockerfile: infra/docker/api.Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in infra/.env}
+      PORT: "4100"
+      HOST: 0.0.0.0
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://shiftproof.swoop.video}
+    expose:
+      - "4100"
+    networks:
+      - edge
+      - data
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4100/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cpus: "0.30"
+    mem_limit: 256m
+    pids_limit: 96
+    logging: *shiftproof-logging
+
+  web:
+    image: ${SHIFTPROOF_WEB_IMAGE:-shiftproof-web:local}
+    build:
+      context: ..
+      dockerfile: infra/docker/web.Dockerfile
+    restart: unless-stopped
+    expose:
+      - "3000"
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+      - /home/node/.config:size=32m,mode=1777
+      - /srv/shiftproof-web/dist/server/.wrangler:size=64m,mode=1777
+      - /srv/shiftproof-web/node_modules/.mf:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cpus: "0.40"
+    mem_limit: 512m
+    pids_limit: 160
+    logging: *shiftproof-logging
+
+  gateway:
+    image: caddy:2.11.4-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SHIFTPROOF_ORIGIN_PORT:-18043}:8080"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      - edge
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+      - /data:size=32m,mode=1777
+      - /config:size=32m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cpus: "0.10"
+    mem_limit: 96m
+    pids_limit: 48
+    logging: *shiftproof-logging
+
+networks:
+  edge:
+  data:
+    internal: true
+
+volumes:
+  postgres_data:

@@ -1,0 +1,21 @@
+{
+  "name": "shiftproof",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "contracts:build": "npm --prefix packages/contracts run build",
+    "web:dev": "npm --prefix apps/web run dev",
+    "web:build": "npm --prefix apps/web run build",
+    "api:dev": "npm --prefix apps/api run dev",
+    "api:build": "npm --prefix apps/api run build",
+    "api:test": "npm --prefix apps/api test",
+    "mobile:start": "npm --prefix apps/mobile start",
+    "mobile:typecheck": "npm --prefix apps/mobile run typecheck",
+    "mobile:test": "npm --prefix apps/mobile test",
+    "mobile:doctor": "npm --prefix apps/mobile run doctor",
+    "check": "npm run contracts:build && npm run web:build && npm run api:build && npm run api:test && npm run mobile:typecheck && npm run mobile:test && npm run mobile:doctor"
+  }
+}
