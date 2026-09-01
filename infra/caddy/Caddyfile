@@ -18,7 +18,9 @@
     -Server
   }
 
-  respond /healthz 200
+  handle /healthz {
+    respond 200
+  }
 
   handle_path /api/* {
     reverse_proxy api:4100
@@ -38,4 +40,3 @@
     reverse_proxy web:3000
   }
 }
-

@@ -2,6 +2,8 @@
 
 This walkthrough distinguishes a connected run from the self-contained preview. Before presenting, decide which mode you are using.
 
+The published reviewer path is [shiftproof.swoop.video](https://shiftproof.swoop.video), with the connected ledger at [/review](https://shiftproof.swoop.video/review). The latest ARM64 APK is attached to the [GitHub release](https://github.com/yazanbaker94/shiftproof/releases/latest).
+
 ## Choose a mode
 
 ### Connected end to end

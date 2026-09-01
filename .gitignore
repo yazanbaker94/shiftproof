@@ -32,6 +32,8 @@ backups/
 docs/design-references/
 apps/mobile/.mobile-template-git/
 apps/web/.sites-source-git/
+docs/screenshots/mobile/_*.png
+docs/screenshots/mobile/*-late.png
 
 # Test and editor output
 coverage/

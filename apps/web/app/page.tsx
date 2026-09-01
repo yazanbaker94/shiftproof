@@ -110,6 +110,21 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      <footer className="mx-auto flex max-w-[1180px] flex-col gap-5 px-6 py-10 text-sm text-[var(--slate)] sm:flex-row sm:items-center sm:justify-between sm:px-10">
+        <p className="max-w-[720px] leading-6">
+          Independent portfolio demo built with synthetic data. ShiftProof is not a
+          Wagepoint product and was not commissioned or endorsed by Wagepoint.
+        </p>
+        <a
+          className="proof-meta link-underline w-fit text-[var(--ink)]"
+          href="https://github.com/yazanbaker94/shiftproof"
+          rel="noreferrer"
+          target="_blank"
+        >
+          SOURCE + DOCUMENTATION →
+        </a>
+      </footer>
     </main>
   );
 }

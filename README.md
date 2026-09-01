@@ -6,6 +6,15 @@ ShiftProof is an independent, offline-first timecard engineering demo. It follow
 
 It is a portfolio project, not a Wagepoint product. Wagepoint did not commission, sponsor, or approve it. All people, dates, hours, notes, identifiers, and review decisions in the demo are synthetic.
 
+## Review the finished build
+
+- [Live case study](https://shiftproof.swoop.video)
+- [Live manager review](https://shiftproof.swoop.video/review)
+- [Download the Android reviewer APK](https://github.com/yazanbaker94/shiftproof/releases/latest/download/shiftproof-release-arm64-v8a.apk)
+- [Browse the source and documentation](https://github.com/yazanbaker94/shiftproof)
+
+The Android APK is an ARM64 reviewer build for modern physical Android devices. Its API endpoint is the same HTTPS deployment used by the manager review.
+
 ## What to review
 
 | Surface | Role in the demo | What it proves |
@@ -30,6 +39,16 @@ The design is intentionally narrow: one reliable workflow is implemented end to 
 8. When the web ledger is connected to the API, that decision appends a revision and event; approval also creates a stable receipt ID and timestamp.
 
 For the exact reviewer path and the meaning of each mode, see [Reviewer demo script](docs/demo-script.md). For persistence and recovery details, see [Architecture](docs/architecture.md).
+
+## Verified evidence
+
+| Offline save on Android | Confirmed online synchronization |
+| --- | --- |
+| ![ShiftProof saved offline on Android](docs/screenshots/mobile/saved-offline.png) | ![ShiftProof synchronized with the API](docs/screenshots/mobile/synced-online.png) |
+
+| Manager review | Approval recorded |
+| --- | --- |
+| ![ShiftProof manager review](docs/screenshots/web/manager-review.png) | ![ShiftProof approved revision](docs/screenshots/web/manager-review-approved.png) |
 
 ## What is implemented
 
@@ -133,7 +152,7 @@ npm --prefix apps/mobile run android:debug:x86_64
 npm --prefix apps/mobile run android:reviewer:arm64
 ```
 
-The build script writes generated APKs under `apps/mobile/dist/android/`. APKs are intentionally ignored by Git; a downloadable binary should be attached to a verified GitHub Release rather than linked with a placeholder. This README does not claim a hosted demo URL or release asset until one is actually published and checked.
+The build script writes generated APKs under `apps/mobile/dist/android/`. APKs are intentionally ignored by Git; the verified reviewer binary and its SHA-256 checksum are attached to the latest GitHub Release.
 
 ## Privacy and product boundary
 
