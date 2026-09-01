@@ -48,6 +48,10 @@ For the exact reviewer path and the meaning of each mode, see [Reviewer demo scr
 | --- | --- | --- |
 | ![ShiftProof saved offline on Android](docs/screenshots/mobile/saved-offline.png) | ![ShiftProof synchronized automatically with the API](docs/screenshots/mobile/synced-online.png) | ![ShiftProof reviewer controls](docs/screenshots/mobile/reviewer-controls.png) |
 
+| Mobile submission ready for review | Manager approval reflected on Android |
+| --- | --- |
+| ![ShiftProof mobile entry ready for manager review](docs/screenshots/mobile/timesheet.png) | ![ShiftProof mobile entry reconciled to payroll ready](docs/screenshots/mobile/timesheet-approved.png) |
+
 | Manager review | Approval recorded |
 | --- | --- |
 | ![ShiftProof manager review](docs/screenshots/web/manager-review.png) | ![ShiftProof approved revision](docs/screenshots/web/manager-review-approved.png) |
