@@ -1,23 +1,42 @@
 import { randomUUID } from "node:crypto";
 
-import { DEMO_IDS, DEMO_REVIEW_REASON } from "@shiftproof/contracts";
-import { afterEach, describe, expect, it } from "vitest";
+import {
+  DEMO_IDS,
+  DEMO_REVIEW_REASON,
+  ReviewerTimesheetListResponseSchema,
+} from "@shiftproof/contracts";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildApp } from "../src/app.js";
 import { MemoryShiftProofRepository } from "../src/memory-repository.js";
 
 const openApps: Array<Awaited<ReturnType<typeof buildApp>>> = [];
 
-async function testApp() {
+async function createTestApp(
+  options: {
+    allowSampleMutations?: boolean;
+    reviewerAccessToken?: string;
+  } = {},
+) {
   const app = await buildApp({
     repository: new MemoryShiftProofRepository(),
     corsOrigins: ["*"],
+    ...options,
   });
   openApps.push(app);
   return app;
 }
 
+async function testApp() {
+  return createTestApp({ allowSampleMutations: true });
+}
+
+async function defaultPolicyApp() {
+  return createTestApp();
+}
+
 afterEach(async () => {
+  vi.useRealTimers();
   await Promise.all(openApps.splice(0).map((app) => app.close()));
 });
 
@@ -31,9 +50,112 @@ describe("ShiftProof API", () => {
       ok: true,
       service: "shiftproof-api",
       storage: "memory",
+      reviewerAccessRequired: false,
       demo: { timesheetId: DEMO_IDS.timesheet },
     });
     expect(response.json().demo.reviewHeuristic).toContain("product-demo heuristic");
+  });
+
+  it("keeps the shared sample read-only by default", async () => {
+    const app = await defaultPolicyApp();
+    const before = await app.inject({ method: "GET", url: "/v1/timesheets/demo" });
+
+    const approve = await app.inject({
+      method: "POST",
+      url: "/v1/timesheets/demo/approve",
+      payload: { note: "This must not change the public sample" },
+    });
+    const returned = await app.inject({
+      method: "POST",
+      url: `/v1/timesheets/${DEMO_IDS.timesheet}/return`,
+      payload: { note: "This must not change the public sample" },
+    });
+
+    for (const response of [approve, returned]) {
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toMatchObject({
+        error: {
+          code: "SAMPLE_READ_ONLY",
+          message: "The shared sample timesheet is read-only",
+        },
+      });
+    }
+    const after = await app.inject({ method: "GET", url: "/v1/timesheets/demo" });
+    expect(after.json()).toEqual(before.json());
+  });
+
+  it("requires the configured reviewer token for exact approve and return decisions", async () => {
+    const reviewerAccessToken = "reviewer-capability-test-secret";
+    const app = await createTestApp({ reviewerAccessToken });
+    const health = await app.inject({ method: "GET", url: "/health" });
+    expect(health.json().reviewerAccessRequired).toBe(true);
+
+    const sample = await app.inject({
+      method: "POST",
+      url: "/v1/timesheets/demo/approve",
+      payload: {},
+    });
+    expect(sample.statusCode).toBe(403);
+    expect(sample.json().error.code).toBe("SAMPLE_READ_ONLY");
+
+    for (const [index, decision] of ["approve", "return"].entries()) {
+      const clientId = randomUUID();
+      const created = await app.inject({
+        method: "POST",
+        url: "/v1/reviewer/time-entries",
+        headers: { "idempotency-key": `reviewer-access-op-${index}` },
+        payload: {
+          clientId,
+          workDate: `2026-09-0${index + 1}`,
+          regularMinutes: 480,
+          overtimeMinutes: 0,
+          note: "Submitted from mobile",
+        },
+      });
+      expect(created.statusCode).toBe(201);
+
+      const decisionPayload =
+        decision === "return" ? { note: "Please verify the shift note" } : {};
+      const missing = await app.inject({
+        method: "POST",
+        url: `/v1/timesheets/${clientId}/${decision}`,
+        payload: decisionPayload,
+      });
+      const wrong = await app.inject({
+        method: "POST",
+        url: `/v1/timesheets/${clientId}/${decision}`,
+        headers: { "x-shiftproof-reviewer-token": "wrong-reviewer-token" },
+        payload: decisionPayload,
+      });
+
+      for (const response of [missing, wrong]) {
+        expect(response.statusCode).toBe(401);
+        expect(response.json()).toMatchObject({
+          error: {
+            code: "REVIEWER_ACCESS_REQUIRED",
+            message: "A valid reviewer access token is required",
+          },
+        });
+      }
+
+      const beforeAuthorizedDecision = await app.inject({
+        method: "GET",
+        url: `/v1/timesheets/${clientId}`,
+      });
+      expect(beforeAuthorizedDecision.json().data.status).toBe("draft");
+
+      const authorized = await app.inject({
+        method: "POST",
+        url: `/v1/timesheets/${clientId}/${decision}`,
+        headers: { "x-shiftproof-reviewer-token": reviewerAccessToken },
+        payload: decisionPayload,
+      });
+      expect(authorized.statusCode).toBe(200);
+      expect(authorized.json().data).toMatchObject({
+        id: clientId,
+        status: decision === "approve" ? "approved" : "returned",
+      });
+    }
   });
 
   it("returns the same mutation for a safe retry and rejects key reuse with other data", async () => {
@@ -163,6 +285,119 @@ describe("ShiftProof API", () => {
     });
     expect(reserved.statusCode).toBe(409);
     expect(reserved.json().error.code).toBe("REVIEWER_RUN_ID_RESERVED");
+  });
+
+  it("lists isolated mobile submissions newest first and scopes approval to the selected run", async () => {
+    const app = await defaultPolicyApp();
+    const firstClientId = "c0000000-0000-4000-8000-000000000002";
+    const secondClientId = "c0000000-0000-4000-8000-000000000001";
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-01T10:00:00.000Z"));
+
+    for (const [index, clientId] of [firstClientId, secondClientId].entries()) {
+      vi.setSystemTime(new Date(`2026-09-01T10:0${index}:00.000Z`));
+      const created = await app.inject({
+        method: "POST",
+        url: "/v1/reviewer/time-entries",
+        headers: { "idempotency-key": `reviewer-inbox-op-${index}` },
+        payload: {
+          clientId,
+          workDate: `2026-09-0${index + 1}`,
+          regularMinutes: index === 0 ? 480 : 960,
+          overtimeMinutes: 0,
+          note: index === 0 ? "First mobile submission" : "Newest mobile submission",
+        },
+      });
+      expect(created.statusCode).toBe(201);
+    }
+
+    const canonicalBefore = await app.inject({
+      method: "GET",
+      url: "/v1/timesheets/demo",
+    });
+    const untouchedSubmissionBefore = await app.inject({
+      method: "GET",
+      url: `/v1/timesheets/${firstClientId}`,
+    });
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/reviewer/timesheets",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const inbox = ReviewerTimesheetListResponseSchema.parse(response.json());
+    expect(inbox.data.map((timesheet) => timesheet.id)).toEqual([
+      secondClientId,
+      firstClientId,
+    ]);
+    expect(inbox.data).toHaveLength(2);
+    expect(inbox.data).not.toContainEqual(
+      expect.objectContaining({ id: DEMO_IDS.timesheet }),
+    );
+    expect(inbox.data[0]).toMatchObject({
+      id: secondClientId,
+      employee: { id: DEMO_IDS.employee, name: "Sarah Chen" },
+      period: {
+        start: "2026-09-02",
+        end: "2026-09-02",
+        label: "Reviewer run / 2026-09-02",
+      },
+      status: "needs_attention",
+      totals: { regular: 16, overtime: 0, all: 16 },
+      entryCount: 1,
+      createdAt: "2026-09-01T10:01:00.000Z",
+      updatedAt: "2026-09-01T10:01:00.000Z",
+    });
+    expect(response.json().data[0]).not.toHaveProperty("entries");
+    expect(response.json().data[0]).not.toHaveProperty("events");
+    expect(response.json().data[0]).not.toHaveProperty("revisions");
+
+    const limitedResponse = await app.inject({
+      method: "GET",
+      url: "/v1/reviewer/timesheets?limit=1",
+    });
+    expect(limitedResponse.statusCode).toBe(200);
+    expect(limitedResponse.json().data.map((item: { id: string }) => item.id)).toEqual([
+      secondClientId,
+    ]);
+
+    const overLimitResponse = await app.inject({
+      method: "GET",
+      url: "/v1/reviewer/timesheets?limit=26",
+    });
+    expect(overLimitResponse.statusCode).toBe(400);
+    expect(overLimitResponse.json().error.code).toBe("INVALID_REQUEST");
+
+    const selected = inbox.data[0];
+    if (!selected) throw new Error("Expected a reviewer submission");
+    const selectedId = selected.id;
+    const approved = await app.inject({
+      method: "POST",
+      url: `/v1/timesheets/${selectedId}/approve`,
+      payload: { note: "Approved from the reviewer inbox" },
+    });
+    expect(approved.statusCode).toBe(200);
+    expect(approved.json().data).toMatchObject({
+      id: selectedId,
+      status: "approved",
+    });
+    expect(approved.json().data.receiptId).toBeTruthy();
+    expect(approved.json().data.approvedAt).toBeTruthy();
+    expect(approved.json().data.events.at(-1).type).toBe("TIMESHEET_APPROVED");
+
+    const untouchedSubmission = await app.inject({
+      method: "GET",
+      url: `/v1/timesheets/${firstClientId}`,
+    });
+    expect(untouchedSubmission.json().data).toEqual(
+      untouchedSubmissionBefore.json().data,
+    );
+
+    const canonicalAfter = await app.inject({
+      method: "GET",
+      url: "/v1/timesheets/demo",
+    });
+    expect(canonicalAfter.json().data).toEqual(canonicalBefore.json().data);
   });
 
   it("flags exactly 16 hours, preserves review evidence, confirms, and approves", async () => {

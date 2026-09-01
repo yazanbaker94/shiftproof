@@ -9,7 +9,13 @@ const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:3000,http://l
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
-const app = await buildApp({ repository, logger: true, corsOrigins });
+const reviewerAccessToken = process.env.REVIEWER_ACCESS_TOKEN?.trim() || undefined;
+const app = await buildApp({
+  repository,
+  logger: true,
+  corsOrigins,
+  ...(reviewerAccessToken ? { reviewerAccessToken } : {}),
+});
 const port = Number(process.env.PORT ?? 4100);
 const host = process.env.HOST ?? "0.0.0.0";
 

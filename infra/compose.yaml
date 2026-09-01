@@ -43,6 +43,7 @@ services:
       HOST: 0.0.0.0
       LOG_LEVEL: ${LOG_LEVEL:-info}
       CORS_ORIGINS: ${CORS_ORIGINS:-https://shiftproof.swoop.video}
+      REVIEWER_ACCESS_TOKEN: ${REVIEWER_ACCESS_TOKEN:-}
     expose:
       - "4100"
     networks:

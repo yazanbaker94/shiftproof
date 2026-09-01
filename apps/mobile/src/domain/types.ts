@@ -1,8 +1,10 @@
 export type EntryStatus =
   | 'APPROVED'
   | 'NEEDS_ATTENTION'
+  | 'RETURNED'
   | 'PENDING_SYNC'
   | 'SUBMITTED'
+  | 'LOCAL_DEMO'
   | 'PAYROLL_READY';
 
 export type QueueStatus = 'PENDING' | 'SYNCING' | 'WAITING_RETRY' | 'SUCCEEDED';

@@ -92,8 +92,10 @@ export async function saveEntryAndEnqueue(
   operationId: string,
 ): Promise<SavedEntryResult> {
   const now = new Date().toISOString();
-  const operationKey = createIdempotencyKey(operationId);
+  let operationKey = createIdempotencyKey(operationId);
   let entryId = operationId;
+  let queuedOperationId = operationId;
+  let reuseQueuedCreate = false;
 
   await db.withExclusiveTransactionAsync(async (txn) => {
     const existing = await txn.getFirstAsync<EntryRow>(
@@ -103,7 +105,20 @@ export async function saveEntryAndEnqueue(
     );
 
     if (existing) {
+      const queuedCreate = await txn.getFirstAsync<OperationRow>(
+        `SELECT * FROM sync_operations
+         WHERE entry_id = ? AND operation_type = 'CREATE_TIME_ENTRY'
+           AND status IN ('PENDING', 'WAITING_RETRY')
+         ORDER BY created_at ASC LIMIT 1`,
+        existing.id,
+      );
+      if (existing.server_id || !queuedCreate) {
+        throw new Error('This entry is already synchronized and cannot be edited as a new entry.');
+      }
       entryId = existing.id;
+      queuedOperationId = queuedCreate.id;
+      operationKey = queuedCreate.idempotency_key;
+      reuseQueuedCreate = true;
       await txn.runAsync(
         `INSERT INTO entry_revisions
           (entry_id, regular_minutes, overtime_minutes, note, status, recorded_at)
@@ -152,22 +167,32 @@ export async function saveEntryAndEnqueue(
       overtimeMinutes: draft.overtimeMinutes,
       note: draft.note || undefined,
     });
-    await txn.runAsync(
-      `INSERT INTO sync_operations (
-        id, entry_id, idempotency_key, operation_type, payload,
-        status, attempts, next_attempt_at, last_error, created_at, updated_at
-      ) VALUES (?, ?, ?, 'CREATE_TIME_ENTRY', ?, 'PENDING', 0, NULL, NULL, ?, ?)`,
-      operationId,
-      entryId,
-      operationKey,
-      payload,
-      now,
-      now,
-    );
+    if (reuseQueuedCreate) {
+      await txn.runAsync(
+        `UPDATE sync_operations SET payload = ?, status = 'PENDING', attempts = 0,
+          next_attempt_at = NULL, last_error = NULL, updated_at = ? WHERE id = ?`,
+        payload,
+        now,
+        queuedOperationId,
+      );
+    } else {
+      await txn.runAsync(
+        `INSERT INTO sync_operations (
+          id, entry_id, idempotency_key, operation_type, payload,
+          status, attempts, next_attempt_at, last_error, created_at, updated_at
+        ) VALUES (?, ?, ?, 'CREATE_TIME_ENTRY', ?, 'PENDING', 0, NULL, NULL, ?, ?)`,
+        operationId,
+        entryId,
+        operationKey,
+        payload,
+        now,
+        now,
+      );
+    }
   });
 
   const entry = await getEntry(db, entryId);
-  const operation = await getOperation(db, operationId);
+  const operation = await getOperation(db, queuedOperationId);
   if (!entry || !operation) throw new Error('Atomic save did not produce the expected entry and queue row.');
   return { entry, operation };
 }

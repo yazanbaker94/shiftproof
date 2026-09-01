@@ -48,8 +48,12 @@ export function NeedsAttentionScreen({ navigation, route }: Props) {
           </View>
           <Text style={styles.sectionTitle}>RESOLVE THIS ENTRY</Text>
           <View style={styles.options}>
-            <Option icon="edit" title="Edit hours" detail="Change the hours for this day." onPress={() => navigation.navigate('AddHours', { entryId: entry.id })} />
-            <View style={styles.rule} />
+            {entry.status === 'PENDING_SYNC' && (
+              <>
+                <Option icon="edit" title="Edit hours" detail="Change the locally saved hours for this day." onPress={() => navigation.navigate('AddHours', { entryId: entry.id })} />
+                <View style={styles.rule} />
+              </>
+            )}
             <Option icon="note" title="Confirm with note" detail="Add a note to explain this entry." onPress={() => noteRef.current?.focus()} />
           </View>
           <Text style={styles.noteLabel}>NOTE (OPTIONAL)</Text>

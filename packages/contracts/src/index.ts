@@ -194,6 +194,26 @@ export const TimeEntryMutationResponseSchema = z.object({
 
 export const TimesheetResponseSchema = z.object({ data: TimesheetSchema });
 
+export const ReviewerTimesheetSummarySchema = TimesheetSchema.pick({
+  id: true,
+  employee: true,
+  period: true,
+  status: true,
+  totals: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  entryCount: z.number().int().nonnegative(),
+});
+
+export const ReviewerTimesheetListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(25).default(25),
+});
+
+export const ReviewerTimesheetListResponseSchema = z.object({
+  data: z.array(ReviewerTimesheetSummarySchema).max(25),
+});
+
 export const IdempotencyOperationSchema = z.object({
   key: z.string().min(1),
   requestHash: z.string().length(64),
@@ -224,6 +244,12 @@ export type ApproveTimesheetBody = z.infer<typeof ApproveTimesheetBodySchema>;
 export type ReturnTimesheetBody = z.infer<typeof ReturnTimesheetBodySchema>;
 export type TimeEntry = z.infer<typeof TimeEntrySchema>;
 export type Timesheet = z.infer<typeof TimesheetSchema>;
+export type ReviewerTimesheetSummary = z.infer<
+  typeof ReviewerTimesheetSummarySchema
+>;
+export type ReviewerTimesheetListResponse = z.infer<
+  typeof ReviewerTimesheetListResponseSchema
+>;
 export type TimesheetStatus = z.infer<typeof TimesheetStatusSchema>;
 export type TimesheetEvent = z.infer<typeof TimesheetEventSchema>;
 export type TimesheetRevision = z.infer<typeof TimesheetRevisionSchema>;

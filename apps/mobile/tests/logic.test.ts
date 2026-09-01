@@ -39,10 +39,21 @@ describe('review and proof states', () => {
       accessibilityLabel: expect.stringContaining('saved on this device'),
     });
     expect(statusPresentation('NEEDS_ATTENTION')).toMatchObject({ label: 'Needs attention', mark: 'alert' });
+    expect(statusPresentation('SUBMITTED')).toMatchObject({
+      label: 'Ready for review',
+      accessibilityLabel: expect.stringContaining('Synced'),
+    });
+    expect(statusPresentation('LOCAL_DEMO')).toMatchObject({
+      label: 'Local demo only',
+      accessibilityLabel: expect.stringContaining('no manager submission'),
+    });
+    expect(statusPresentation('RETURNED')).toMatchObject({ label: 'Returned by manager' });
   });
 
   it('maps server approval to payroll-ready without regressing unknown states', () => {
     expect(reconcileStatus('SUBMITTED', 'approved')).toBe('PAYROLL_READY');
+    expect(reconcileStatus('SUBMITTED', 'returned')).toBe('RETURNED');
+    expect(reconcileStatus('PENDING_SYNC', 'local_demo')).toBe('LOCAL_DEMO');
     expect(reconcileStatus('PENDING_SYNC', undefined)).toBe('PENDING_SYNC');
   });
 });

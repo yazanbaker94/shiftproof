@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { API_DEMO_SEED, DEMO_CLIENT_IDS } from '../src/data/database';
-import { extractRecoveredCreate, extractTimesheet } from '../src/data/sync';
+import { API_DEMO_SEED, DEMO_CLIENT_IDS, DEMO_PERIOD_ID } from '../src/data/database';
+import { extractRecoveredCreate, extractTimesheet, isIsolatedReviewerEntry } from '../src/data/sync';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -51,5 +51,23 @@ describe('mobile/API wire protocol', () => {
 
   it('rejects incomplete operation lookups instead of assuming success', () => {
     expect(extractRecoveredCreate({ data: { status: 'pending' } })).toBeNull();
+  });
+
+  it('reconciles synced mobile submissions independently from the canonical sample', () => {
+    expect(isIsolatedReviewerEntry({
+      id: '8372fa17-2c44-4f9d-a183-71f4fc5c03cc',
+      periodId: DEMO_PERIOD_ID,
+      serverId: 'server-entry',
+    })).toBe(true);
+    expect(isIsolatedReviewerEntry({
+      id: DEMO_CLIENT_IDS.apiMonday,
+      periodId: DEMO_PERIOD_ID,
+      serverId: 'server-entry',
+    })).toBe(false);
+    expect(isIsolatedReviewerEntry({
+      id: '8372fa17-2c44-4f9d-a183-71f4fc5c03cc',
+      periodId: DEMO_PERIOD_ID,
+      serverId: null,
+    })).toBe(false);
   });
 });

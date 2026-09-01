@@ -8,6 +8,7 @@ import {
   type ConfirmTimeEntryBody,
   type CreateTimeEntryBody,
   type IdempotencyOperation,
+  type ReviewerTimesheetSummary,
   type ReturnTimesheetBody,
   type TimeEntry,
   type Timesheet,
@@ -273,6 +274,35 @@ export class MemoryShiftProofRepository implements ShiftProofRepository {
     const operation = createOperation(operationKey, hash, response, timestamp);
     this.operations.set(operationKey, operation);
     return { kind: "created", operation: clone(operation) };
+  }
+
+  async listReviewerTimesheets(
+    limit: number,
+  ): Promise<ReviewerTimesheetSummary[]> {
+    return [...this.timesheets.values()]
+      .filter(
+        (timesheet) =>
+          timesheet.id !== DEMO_IDS.timesheet &&
+          timesheet.revisions.some(
+            (revision) => revision.action === "REVIEWER_RUN_CREATED",
+          ),
+      )
+      .sort(
+        (left, right) =>
+          right.createdAt.localeCompare(left.createdAt) ||
+          right.id.localeCompare(left.id),
+      )
+      .slice(0, limit)
+      .map((timesheet) => ({
+        id: timesheet.id,
+        employee: clone(timesheet.employee),
+        period: clone(timesheet.period),
+        status: timesheet.status,
+        totals: clone(timesheet.totals),
+        entryCount: timesheet.entries.length,
+        createdAt: timesheet.createdAt,
+        updatedAt: timesheet.updatedAt,
+      }));
   }
 
   async getTimesheet(id: string) {

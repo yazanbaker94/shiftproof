@@ -45,6 +45,13 @@ export function statusPresentation(status: EntryStatus): StatusPresentation {
         tone: 'amber',
         mark: 'alert',
       };
+    case 'RETURNED':
+      return {
+        label: 'Returned by manager',
+        accessibilityLabel: 'Returned by manager with a review note',
+        tone: 'amber',
+        mark: 'alert',
+      };
     case 'PENDING_SYNC':
       return {
         label: 'Pending sync',
@@ -54,10 +61,17 @@ export function statusPresentation(status: EntryStatus): StatusPresentation {
       };
     case 'SUBMITTED':
       return {
-        label: 'Submitted',
-        accessibilityLabel: 'Submitted for manager review',
+        label: 'Ready for review',
+        accessibilityLabel: 'Synced and ready for manager review',
         tone: 'blue',
         mark: 'dot',
+      };
+    case 'LOCAL_DEMO':
+      return {
+        label: 'Local demo only',
+        accessibilityLabel: 'Local demo only, no manager submission was sent',
+        tone: 'blue',
+        mark: 'ring',
       };
     case 'PAYROLL_READY':
       return {
@@ -76,6 +90,8 @@ export function createIdempotencyKey(operationId: string): string {
 export function reconcileStatus(local: EntryStatus, serverStatus: string | undefined): EntryStatus {
   const normalized = serverStatus?.toLowerCase();
   if (normalized === 'approved' || normalized === 'payroll_ready') return 'PAYROLL_READY';
+  if (normalized === 'returned') return 'RETURNED';
+  if (normalized === 'local_demo') return 'LOCAL_DEMO';
   if (normalized === 'needs_attention') return 'NEEDS_ATTENTION';
   if (normalized === 'submitted' || normalized === 'pending_review' || normalized === 'synced' || normalized === 'confirmed') return 'SUBMITTED';
   return local;

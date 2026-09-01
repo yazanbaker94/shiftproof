@@ -4,6 +4,7 @@ import type {
   CreateTimeEntryBody,
   CreateTimeEntryResponse,
   IdempotencyOperation,
+  ReviewerTimesheetSummary,
   ReturnTimesheetBody,
   TimeEntry,
   Timesheet,
@@ -37,6 +38,7 @@ export interface ShiftProofRepository {
     operationKey: string,
     hash: string,
   ): Promise<IdempotentCreateResult>;
+  listReviewerTimesheets(limit: number): Promise<ReviewerTimesheetSummary[]>;
   getTimesheet(id: string): Promise<Timesheet | null>;
   confirmTimeEntry(
     id: string,

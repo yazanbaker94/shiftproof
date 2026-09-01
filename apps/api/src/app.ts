@@ -1,10 +1,13 @@
 import cors from "@fastify/cors";
+import { createHash, timingSafeEqual } from "node:crypto";
 import {
   ApproveTimesheetBodySchema,
   ConfirmTimeEntryBodySchema,
   CreateTimeEntryBodySchema,
   DEMO_IDS,
   DEMO_REVIEW_THRESHOLD_HOURS,
+  ReviewerTimesheetListQuerySchema,
+  type ReviewerTimesheetListResponse,
   ReturnTimesheetBodySchema,
   ReviewerCreateTimeEntryBodySchema,
   UuidSchema,
@@ -20,6 +23,8 @@ type BuildAppOptions = {
   repository: ShiftProofRepository;
   logger?: boolean;
   corsOrigins?: string[];
+  allowSampleMutations?: boolean;
+  reviewerAccessToken?: string;
 };
 
 function apiError(
@@ -32,9 +37,46 @@ function apiError(
     : { error: { code, message, details } };
 }
 
+function isZodError(
+  error: unknown,
+): error is { issues: Array<{ path: PropertyKey[]; message: string }> } {
+  return (
+    error instanceof ZodError ||
+    (typeof error === "object" &&
+      error !== null &&
+      "name" in error &&
+      error.name === "ZodError" &&
+      "issues" in error &&
+      Array.isArray(error.issues))
+  );
+}
+
+function tokensMatch(expected: string, presented: string): boolean {
+  const expectedDigest = createHash("sha256").update(expected).digest();
+  const presentedDigest = createHash("sha256").update(presented).digest();
+  return timingSafeEqual(expectedDigest, presentedDigest);
+}
+
+function requireReviewerAccess(
+  configuredToken: string | undefined,
+  rawHeader: string | string[] | undefined,
+): void {
+  if (!configuredToken) return;
+  const presentedToken = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
+  if (!presentedToken || !tokensMatch(configuredToken, presentedToken)) {
+    throw new DomainError(
+      401,
+      "REVIEWER_ACCESS_REQUIRED",
+      "A valid reviewer access token is required",
+    );
+  }
+}
+
 export async function buildApp(options: BuildAppOptions) {
   const app = Fastify({ logger: options.logger ?? false });
   const allowedOrigins = options.corsOrigins ?? ["http://localhost:3000"];
+  const allowSampleMutations = options.allowSampleMutations ?? false;
+  const reviewerAccessToken = options.reviewerAccessToken?.trim() || undefined;
   await app.register(cors, {
     origin(origin, callback) {
       if (!origin || allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
@@ -51,6 +93,7 @@ export async function buildApp(options: BuildAppOptions) {
       ok: repository.ok,
       service: "shiftproof-api",
       storage: repository.storage,
+      reviewerAccessRequired: Boolean(reviewerAccessToken),
       demo: {
         timesheetId: DEMO_IDS.timesheet,
         reviewHeuristic:
@@ -163,6 +206,17 @@ export async function buildApp(options: BuildAppOptions) {
     },
   );
 
+  app.get<{
+    Querystring: { limit?: string };
+    Reply: ReviewerTimesheetListResponse;
+  }>(
+    "/v1/reviewer/timesheets",
+    async (request) => {
+      const { limit } = ReviewerTimesheetListQuerySchema.parse(request.query);
+      return { data: await options.repository.listReviewerTimesheets(limit) };
+    },
+  );
+
   app.get<{ Params: { id: string } }>(
     "/v1/timesheets/:id",
     async (request, reply) => {
@@ -195,11 +249,24 @@ export async function buildApp(options: BuildAppOptions) {
   app.post<{ Params: { id: string } }>(
     "/v1/timesheets/:id/approve",
     async (request) => {
-      const body = ApproveTimesheetBodySchema.parse(request.body ?? {});
       const id =
         request.params.id === "demo"
           ? DEMO_IDS.timesheet
           : UuidSchema.parse(request.params.id);
+      if (id === DEMO_IDS.timesheet && !allowSampleMutations) {
+        throw new DomainError(
+          403,
+          "SAMPLE_READ_ONLY",
+          "The shared sample timesheet is read-only",
+        );
+      }
+      if (id !== DEMO_IDS.timesheet) {
+        requireReviewerAccess(
+          reviewerAccessToken,
+          request.headers["x-shiftproof-reviewer-token"],
+        );
+      }
+      const body = ApproveTimesheetBodySchema.parse(request.body ?? {});
       const timesheet = await options.repository.approveTimesheet(id, body);
       return { data: timesheet };
     },
@@ -208,18 +275,31 @@ export async function buildApp(options: BuildAppOptions) {
   app.post<{ Params: { id: string } }>(
     "/v1/timesheets/:id/return",
     async (request) => {
-      const body = ReturnTimesheetBodySchema.parse(request.body);
       const id =
         request.params.id === "demo"
           ? DEMO_IDS.timesheet
           : UuidSchema.parse(request.params.id);
+      if (id === DEMO_IDS.timesheet && !allowSampleMutations) {
+        throw new DomainError(
+          403,
+          "SAMPLE_READ_ONLY",
+          "The shared sample timesheet is read-only",
+        );
+      }
+      if (id !== DEMO_IDS.timesheet) {
+        requireReviewerAccess(
+          reviewerAccessToken,
+          request.headers["x-shiftproof-reviewer-token"],
+        );
+      }
+      const body = ReturnTimesheetBodySchema.parse(request.body);
       const timesheet = await options.repository.returnTimesheet(id, body);
       return { data: timesheet };
     },
   );
 
   app.setErrorHandler((error, request, reply) => {
-    if (error instanceof ZodError) {
+    if (isZodError(error)) {
       return reply.code(400).send(
         apiError("INVALID_REQUEST", "Request data is invalid", {
           issues: error.issues.map((issue) => ({

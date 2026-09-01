@@ -3,7 +3,7 @@
     "name": "ShiftProof",
     "slug": "shiftproof",
     "scheme": "shiftproof",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "video.swoop.shiftproof",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#F8F5EE",
         "foregroundImage": "./assets/android-icon-foreground.png",

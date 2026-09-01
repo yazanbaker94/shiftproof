@@ -19,13 +19,17 @@ The interface is primarily contemporary product UI with a restrained ledger/rece
 
 - `○` — not recorded
 - outlined mark — stored locally or waiting to synchronize
-- `●` — recorded and reconciled
+- `●` — synchronized and available for manager review
 - amber `!` — needs calm human review
-- approved receipt — a permanent decision with ID and timestamp
+- approved receipt / **Payroll ready** — a reconciled manager decision with ID and timestamp
+- amber return mark / **Returned by manager** — a preserved, read-only terminal decision; this demo does not present a resubmit action
 
 Text labels and accessibility descriptions accompany every mark; color is never the only signal.
+
+## Interaction boundaries
+
+The shared **Sample scenario** is always labeled as reference-only and cannot be approved or returned. Connected live records are inspectable on the public production page, while decision controls require a private reviewer capability link. Read access, decision authority, connection state, and terminal status are stated in text rather than implied by color or polish.
 
 ## Reusable surfaces
 
 `ProofMark`, `LedgerRow`, `HoursDisplay`, `ConnectivityStatus`, `ProofSlip`, `StatusLabel`, `PeriodHeader`, `PrimaryAction`, and `BottomNavigation` carry the same vocabulary across screens.
-

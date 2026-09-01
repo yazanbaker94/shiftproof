@@ -29,6 +29,7 @@ interface AppContextValue {
   isSyncing: boolean;
   lastSyncSummary: SyncSummary | null;
   pendingOperationCount: number;
+  checkForUpdates: () => Promise<void>;
   saveEntry: (draft: DraftEntry) => Promise<TimeEntry>;
   confirmEntry: (entryId: string, note: string) => Promise<void>;
   findEntry: (entryId: string) => TimeEntry | undefined;
@@ -132,6 +133,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void Haptics.selectionAsync();
   }, []);
 
+  const checkForUpdates = useCallback(async (): Promise<void> => {
+    if (!isOnline) return;
+    try {
+      await syncNow();
+    } catch (error) {
+      logger.warn('automatic_update_check_failed', { message: String(error) });
+    }
+  }, [isOnline, syncNow]);
+
   const saveEntry = useCallback(async (draft: DraftEntry): Promise<TimeEntry> => {
     const operationId = Crypto.randomUUID();
     const result = await saveEntryAndEnqueue(db, draft, operationId);
@@ -174,6 +184,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     isSyncing,
     lastSyncSummary,
     pendingOperationCount,
+    checkForUpdates,
     saveEntry,
     confirmEntry,
     findEntry: (entryId: string) => entries.find((entry) => entry.id === entryId),
@@ -181,6 +192,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     resetDemo,
   }), [
     actualNetworkReachable,
+    checkForUpdates,
     confirmEntry,
     connectionStatus,
     demoNetworkMode,

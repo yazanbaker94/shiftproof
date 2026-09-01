@@ -6,10 +6,10 @@ ShiftProof separates three concerns: durable employee capture on Android, author
 Android employee app                         Manager web ledger
 ┌──────────────────────┐                    ┌─────────────────────┐
 │ UI + auto network    │                    │ live / preview label│
-│ SQLite (WAL)         │                    │ approve or return   │
+│ SQLite (WAL)         │                    │ inspect / gated act │
 │ time entry           │                    └──────────┬──────────┘
 │ queued operation     │                               │ REST
-│ sync receipt         │                               │
+│ sync + review receipt│                               │
 └──────────┬───────────┘                               │
            │ REST + Idempotency-Key                    │
            └──────────────────┬────────────────────────┘
@@ -80,24 +80,30 @@ Core routes:
 | --- | --- | --- |
 | `GET` | `/health` | Repository mode and explicitly demo-only review threshold |
 | `POST` | `/v1/time-entries` | Idempotent time-entry create |
+| `POST` | `/v1/reviewer/time-entries` | Idempotent create into an isolated mobile reviewer submission |
 | `GET` | `/v1/operations/:key` | Recover an uncertain create result |
+| `GET` | `/v1/reviewer/timesheets` | Return lightweight summaries for up to 25 recent mobile submissions, newest-first |
 | `GET` | `/v1/timesheets/:id` | Read entries, totals, events, and revisions; `demo` resolves to the seeded record |
 | `POST` | `/v1/time-entries/:id/confirm` | Add employee confirmation context |
-| `POST` | `/v1/timesheets/:id/approve` | Append approval and issue receipt metadata |
-| `POST` | `/v1/timesheets/:id/return` | Append a return decision and manager note |
+| `POST` | `/v1/timesheets/:id/approve` | With reviewer capability, append approval and issue receipt metadata |
+| `POST` | `/v1/timesheets/:id/return` | With reviewer capability, append a return decision and manager note |
 
 ## Evidence model
 
-Editing or reviewing a record does not rewrite the evidence trail. The API keeps the current materialized timesheet for efficient reads and appends domain events and human-readable revisions for auditability. Approval adds a receipt ID and approval timestamp. Return requires a note and appends that reason.
+Reviewing a record does not rewrite the evidence trail. The API keeps the current materialized timesheet for efficient reads and appends domain events and human-readable revisions for auditability. Approval adds a receipt ID and approval timestamp. Return requires a note and appends that reason.
 
 The original entry, employee confirmation, and manager decision therefore remain distinguishable. This is an evidence-oriented demo, not a general-purpose event-sourcing framework.
 
-## Web connection behavior
+## Connected reviewer handoff
 
-The manager page first attempts to load the configured API timesheet:
+With the API available, the manager page requests a bounded inbox of lightweight summaries for the 25 most recent live submissions and opens the newest one by default. It fetches full entries, events, and revisions only for the selected timesheet. A reviewer can select another live submission or deliberately switch to the deterministic, read-only **Sample scenario**.
 
-- **Live record** means reads and decisions are backed by the API repository.
-- **Isolated preview** means the API was unavailable. The seeded table remains usable for review, but approve/return only changes browser state and is lost on refresh.
+Reading and deciding are separate trust boundaries. The public production page can inspect synthetic connected records, but approve and return commands require an optional private reviewer capability link. When that capability is present, the command uses the selected submission's exact timesheet ID. The API rejects decisions against `demo`, so the public sample cannot be changed even by a capable reviewer.
+
+The manager page makes its connection mode explicit:
+
+- **Connected record** means reads are backed by the API repository; mutation controls are available only when the private reviewer capability is valid.
+- **Read-only preview** means the API was unavailable. The seeded table remains inspectable, but no decision is recorded.
 
 That label is part of the trust boundary: a polished interaction is not presented as a persisted mutation when the service cannot be reached.
 
@@ -108,8 +114,10 @@ The Android app always uses real SQLite transactions and queue rows. Transport d
 - without `EXPO_PUBLIC_API_URL`, successful synchronization is simulated locally so the mobile workflow can be reviewed without infrastructure;
 - with `EXPO_PUBLIC_API_URL`, the app performs create, operation recovery, confirmation, and timesheet reconciliation against the REST API.
 
-The seeded mobile and web screens tell the same deterministic Sarah Chen scenario, but they should not be mistaken for one mutable shared row. A newly created mobile entry synchronizes through the real API into an isolated reviewer ledger keyed by its stable client UUID. This keeps idempotent retries real while preventing one reviewer from approving or changing the public baseline for everyone else.
+The seeded mobile and web screens tell the same deterministic Sarah Chen scenario, but they are not the destination for new employee data. A newly created mobile entry synchronizes through the real API into an isolated reviewer ledger keyed by its stable client UUID. A lightweight summary of that record can appear in `/review`; selecting it loads the exact detail. An authorized private reviewer can approve or return it by ID without changing the public baseline.
+
+When Android is online, it reconciles live submissions during the automatic synchronization pass and whenever the app returns to the foreground. While the Timesheet screen is visible, it also checks for a manager decision every 12 seconds. Approval changes the matching local entry to `PAYROLL_READY` and stores the API receipt metadata. Return changes it to `RETURNED` and preserves that terminal state as read-only; correction and resubmission are not implemented. The labeled sample continues to provide a deterministic walkthrough and cannot be mutated.
 
 ## Deliberate product boundary
 
-ShiftProof does not calculate payroll, tax, statutory overtime, eligibility, remittances, or labor-law compliance. Daily totals of 16 hours or more are flagged solely to demonstrate a calm human-review workflow. The health response and API copy label this as a product-demo heuristic.
+ShiftProof contains only synthetic demo data. It is independent portfolio software—not Wagepoint software, a Wagepoint product, or a payroll engine. It does not calculate payroll, tax, statutory overtime, eligibility, remittances, or labor-law compliance. Daily totals of 16 hours or more are flagged solely to demonstrate a calm human-review workflow. The health response and API copy label this as a product-demo heuristic.

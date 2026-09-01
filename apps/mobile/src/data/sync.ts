@@ -2,10 +2,12 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { calculateTotalMinutes, reconcileStatus, statusAfterSync } from '../domain/logic';
 import type { EntryStatus, SyncOperation, TimeEntry } from '../domain/types';
 import { logger } from '../observability/logger';
+import { DEMO_CLIENT_IDS, DEMO_PERIOD_ID } from './database';
 import {
   applyRemoteEntryStatus,
   applySyncSuccess,
   getEntry,
+  listEntries,
   listDueOperations,
   markOperationFailed,
   markOperationSyncing,
@@ -35,6 +37,13 @@ type RemoteCreateEnvelope = {
     operationKey?: string;
   };
 };
+
+const CANONICAL_DEMO_CLIENT_IDS = new Set<string>([
+  DEMO_CLIENT_IDS.apiMonday,
+  DEMO_CLIENT_IDS.apiTuesdayAttention,
+  DEMO_CLIENT_IDS.apiWednesday,
+  DEMO_CLIENT_IDS.apiThursday,
+]);
 
 export interface SyncSummary {
   attempted: number;
@@ -74,6 +83,14 @@ export function extractTimesheet(body: unknown): RemoteTimesheet | null {
   if (typeof data !== 'object' || data === null) return null;
   const direct = data as RemoteTimesheet & { timesheet?: RemoteTimesheet };
   return direct.timesheet ?? direct;
+}
+
+export function isIsolatedReviewerEntry(
+  entry: Pick<TimeEntry, 'id' | 'periodId' | 'serverId'>,
+): boolean {
+  return entry.periodId === DEMO_PERIOD_ID
+    && Boolean(entry.serverId)
+    && !CANONICAL_DEMO_CLIENT_IDS.has(entry.id);
 }
 
 async function recoverOperation(apiUrl: string, operation: SyncOperation): Promise<RemoteCreateEnvelope | null> {
@@ -126,9 +143,12 @@ async function executeRemote(
 }
 
 function localFallbackResult(entry: TimeEntry, operation: SyncOperation): RemoteCreateEnvelope {
+  const syncedStatus = statusAfterSync(calculateTotalMinutes(entry));
   const status = operation.operationType === 'CONFIRM_TIME_ENTRY'
-    ? 'submitted'
-    : statusAfterSync(calculateTotalMinutes(entry)).toLowerCase();
+    ? 'local_demo'
+    : syncedStatus === 'SUBMITTED'
+      ? 'local_demo'
+      : syncedStatus.toLowerCase();
   return {
     data: {
       entry: {
@@ -192,8 +212,9 @@ export async function syncPendingOperations(
 
 export async function reconcileTimesheet(db: SQLiteDatabase, apiUrl: string | undefined): Promise<void> {
   if (!apiUrl) return;
+  const normalizedApiUrl = apiUrl.replace(/\/$/, '');
   try {
-    const body = await fetchJson(`${apiUrl.replace(/\/$/, '')}/v1/timesheets/demo`);
+    const body = await fetchJson(`${normalizedApiUrl}/v1/timesheets/demo`);
     const timesheet = extractTimesheet(body);
     const remoteEntries = timesheet?.entries ?? timesheet?.timeEntries ?? [];
     for (const remote of remoteEntries) {
@@ -205,5 +226,36 @@ export async function reconcileTimesheet(db: SQLiteDatabase, apiUrl: string | un
     }
   } catch (error) {
     logger.warn('timesheet_reconcile_failed', { message: String(error) });
+  }
+
+  const localEntries = await listEntries(db);
+  for (const localEntry of localEntries.filter(isIsolatedReviewerEntry)) {
+    try {
+      const body = await fetchJson(
+        `${normalizedApiUrl}/v1/timesheets/${encodeURIComponent(localEntry.id)}`,
+      );
+      const timesheet = extractTimesheet(body);
+      const remoteEntries = timesheet?.entries ?? timesheet?.timeEntries ?? [];
+      const remote = remoteEntries.find((candidate) => candidate.clientId === localEntry.id);
+      if (!remote?.id) continue;
+
+      const status: EntryStatus = timesheet?.status === 'approved'
+        ? 'PAYROLL_READY'
+        : timesheet?.status === 'returned'
+          ? 'RETURNED'
+          : reconcileStatus('SUBMITTED', remote.status);
+      await applyRemoteEntryStatus(
+        db,
+        localEntry.id,
+        remote.id,
+        status,
+        timesheet?.receiptId,
+      );
+    } catch (error) {
+      logger.warn('reviewer_timesheet_reconcile_failed', {
+        timesheetId: localEntry.id,
+        message: String(error),
+      });
+    }
   }
 }

@@ -5,11 +5,13 @@ import {
   DEMO_REVIEW_REASON,
   DEMO_REVIEW_THRESHOLD_HOURS,
   IdempotencyOperationSchema,
+  ReviewerTimesheetSummarySchema,
   TimesheetSchema,
   type ApproveTimesheetBody,
   type ConfirmTimeEntryBody,
   type CreateTimeEntryBody,
   type IdempotencyOperation,
+  type ReviewerTimesheetSummary,
   type ReturnTimesheetBody,
   type TimeEntry,
   type Timesheet,
@@ -84,6 +86,21 @@ type OperationRow = {
   status: "pending" | "succeeded";
   response_status: number | null;
   response: unknown;
+  created_at: string | Date;
+  updated_at: string | Date;
+};
+
+type ReviewerTimesheetSummaryRow = {
+  id: string;
+  employee_id: string;
+  employee_name: string;
+  period_start: string | Date;
+  period_end: string | Date;
+  period_label: string;
+  status: Timesheet["status"];
+  regular_hours: string | number;
+  overtime_hours: string | number;
+  entry_count: string | number;
   created_at: string | Date;
   updated_at: string | Date;
 };
@@ -371,6 +388,61 @@ export class PostgresShiftProofRepository implements ShiftProofRepository {
     } finally {
       client.release();
     }
+  }
+
+  async listReviewerTimesheets(
+    limit: number,
+  ): Promise<ReviewerTimesheetSummary[]> {
+    const result = await this.pool.query<ReviewerTimesheetSummaryRow>(
+      `SELECT ts.id,
+              ts.employee_id,
+              employee.name AS employee_name,
+              ts.period_start,
+              ts.period_end,
+              ts.period_label,
+              ts.status,
+              COALESCE(SUM(entry.regular_hours), 0) AS regular_hours,
+              COALESCE(SUM(entry.overtime_hours), 0) AS overtime_hours,
+              COUNT(entry.id)::integer AS entry_count,
+              ts.created_at,
+              ts.updated_at
+         FROM timesheets ts
+         JOIN employees employee ON employee.id = ts.employee_id
+         LEFT JOIN time_entries entry ON entry.timesheet_id = ts.id
+        WHERE ts.id <> $1
+          AND EXISTS (
+            SELECT 1
+              FROM timesheet_revisions revision
+             WHERE revision.timesheet_id = ts.id
+               AND revision.action = 'REVIEWER_RUN_CREATED'
+          )
+        GROUP BY ts.id, employee.id, employee.name
+        ORDER BY ts.created_at DESC, ts.id DESC
+        LIMIT $2`,
+      [DEMO_IDS.timesheet, limit],
+    );
+    return result.rows.map((row) => {
+      const regular = roundHours(Number(row.regular_hours));
+      const overtime = roundHours(Number(row.overtime_hours));
+      return ReviewerTimesheetSummarySchema.parse({
+        id: row.id,
+        employee: { id: row.employee_id, name: row.employee_name },
+        period: {
+          start: toDateOnly(row.period_start),
+          end: toDateOnly(row.period_end),
+          label: row.period_label,
+        },
+        status: row.status,
+        totals: {
+          regular,
+          overtime,
+          all: roundHours(regular + overtime),
+        },
+        entryCount: Number(row.entry_count),
+        createdAt: toIso(row.created_at),
+        updatedAt: toIso(row.updated_at),
+      });
+    });
   }
 
   async getTimesheet(id: string) {

@@ -17,28 +17,54 @@ import { Icon } from '../components/Icon';
 import { PrimaryAction } from '../components/PrimaryAction';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { calculateTotalMinutes, formatDecimalHours } from '../domain/logic';
+import { DEMO_PERIOD_ID } from '../data/database';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, fonts, radius, sharedStyles } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddHours'>;
 
 export function AddHoursScreen({ navigation, route }: Props) {
-  const { findEntry, saveEntry } = useApp();
-  const existing = route.params?.entryId ? findEntry(route.params.entryId) : undefined;
+  const { entries, findEntry, isSyncing, saveEntry } = useApp();
+  const existing = route.params?.entryId
+    ? findEntry(route.params.entryId)
+    : entries.find((entry) => entry.periodId === DEMO_PERIOD_ID && entry.workDate === '2026-09-01');
   const [regularMinutes, setRegularMinutes] = useState(existing?.regularMinutes ?? 480);
   const [overtimeMinutes, setOvertimeMinutes] = useState(existing?.overtimeMinutes ?? 90);
   const [note, setNote] = useState(existing?.note || 'Covered evening inventory count.');
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const total = regularMinutes + overtimeMinutes;
   const canAdd = (amount: number) => total + amount <= 24 * 60;
   const date = existing?.workDate ?? '2026-09-01';
   const dateLabel = useMemo(() => date === '2026-09-01' ? 'Tue, Sep 01' : date, [date]);
 
+  if (existing && (existing.status !== 'PENDING_SYNC' || isSyncing)) {
+    return (
+      <SafeAreaView style={sharedStyles.page} edges={['top', 'bottom']}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScreenHeader kind="title" title="Add hours" onBack={() => navigation.goBack()} rightLabel="Cancel" onRight={() => navigation.goBack()} />
+          <View style={styles.dateRow}><Icon name="calendar" size={26} color={colors.slate} /><Text style={styles.date}>{dateLabel}</Text></View>
+          <View style={styles.lockedCard}>
+            <View style={styles.lockedMark}><Icon name="check" color={colors.white} size={22} strokeWidth={2.3} /></View>
+            <Text style={styles.lockedTitle}>This day is already synchronized</Text>
+            <Text style={styles.lockedCopy}>
+              ShiftProof will not send a second create request for the same day. Review the existing entry and its manager status in Timesheet.
+            </Text>
+          </View>
+          <PrimaryAction label="View timesheet" onPress={() => navigation.navigate('Main', { screen: 'Timesheet' })} />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   const onSave = async () => {
     setSaving(true);
+    setSaveError('');
     try {
       const entry = await saveEntry({ workDate: date, regularMinutes, overtimeMinutes, note: note.trim() });
       navigation.replace('SavedOffline', { entryId: entry.id });
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'The entry could not be saved.');
     } finally {
       setSaving(false);
     }
@@ -93,6 +119,7 @@ export function AddHoursScreen({ navigation, route }: Props) {
               <Text style={styles.totalBreakdown}>{formatDecimalHours(regularMinutes)} regular + {formatDecimalHours(overtimeMinutes)} overtime</Text>
             </View>
           </View>
+          {saveError ? <Text style={styles.saveError} accessibilityLiveRegion="polite">{saveError}</Text> : null}
           <PrimaryAction label="Save entry" onPress={onSave} loading={saving} disabled={total <= 0} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -114,4 +141,9 @@ const styles = StyleSheet.create({
   totalCheck: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' },
   total: { fontFamily: fonts.sansSemiBold, fontSize: 23, color: colors.navy, fontVariant: ['tabular-nums'] },
   totalBreakdown: { marginTop: 1, fontFamily: fonts.sans, fontSize: 15, color: colors.slate },
+  lockedCard: { marginTop: 20, marginBottom: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.dividerStrong, borderRadius: radius.md, backgroundColor: colors.paperLight, padding: 22 },
+  lockedMark: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.green },
+  lockedTitle: { marginTop: 18, fontFamily: fonts.sansSemiBold, fontSize: 23, color: colors.navy },
+  lockedCopy: { marginTop: 8, fontFamily: fonts.sans, fontSize: 16, lineHeight: 24, color: colors.navySoft },
+  saveError: { marginBottom: 12, fontFamily: fonts.sansMedium, fontSize: 14, lineHeight: 20, color: colors.danger },
 });

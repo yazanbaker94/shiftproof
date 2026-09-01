@@ -285,6 +285,43 @@ a {
   padding: 2rem 3rem;
 }
 
+.review-inbox {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(320px, 1.2fr);
+  align-items: end;
+  gap: 2rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-deep);
+  padding: 1.5rem 3rem;
+}
+
+.review-inbox__selector {
+  display: grid;
+  gap: 0.55rem;
+  font-family: var(--font-ibm-plex-mono), monospace;
+  font-size: 0.67rem;
+  letter-spacing: 0.08em;
+}
+
+.review-inbox__selector select {
+  width: 100%;
+  min-height: 48px;
+  appearance: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--surface);
+  padding: 0.7rem 0.9rem;
+  color: var(--ink);
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.9rem;
+  letter-spacing: normal;
+}
+
+.review-inbox__selector select:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
 .review-monogram {
   display: grid;
   width: 72px;
@@ -311,6 +348,41 @@ a {
 
 .review-ledger-panel {
   min-width: 0;
+}
+
+.review-ledger-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.75rem 2rem 1.25rem;
+}
+
+.review-sheet-status,
+.review-receipt {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border: 1px solid currentColor;
+  padding: 0.3rem 0.55rem;
+  font-family: var(--font-ibm-plex-mono), monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.review-sheet-status--approved,
+.review-receipt {
+  color: var(--green);
+}
+
+.review-sheet-status--needs_attention,
+.review-sheet-status--returned {
+  color: var(--amber);
+}
+
+.review-sheet-status--draft {
+  color: var(--slate);
 }
 
 .review-table th {
@@ -346,6 +418,16 @@ a {
   color: var(--amber);
 }
 
+.web-status--local {
+  color: var(--slate);
+}
+
+.review-empty {
+  min-height: 240px;
+  border-top: 1px solid var(--line);
+  padding: 2.5rem 2rem;
+}
+
 .review-detail {
   display: flex;
   min-height: calc(100vh - 210px);
@@ -368,19 +450,63 @@ a {
   gap: 0.5rem;
 }
 
-.revision-list li span {
+.revision-list li > span:first-child {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--line-strong);
 }
 
-.revision-list li:first-child span {
+.revision-list li:first-child > span:first-child {
   background: var(--ink);
+}
+
+.revision-list__event {
+  display: grid;
+  gap: 0.15rem;
+  color: var(--slate);
+}
+
+.revision-list__event b {
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1.35;
+  text-transform: none;
+}
+
+.revision-list__event small {
+  font-size: 0.67rem;
+  line-height: 1.45;
 }
 
 .revision-list em {
   font-style: normal;
+}
+
+.review-decision {
+  display: grid;
+  gap: 0.4rem;
+  border: 1px solid var(--line-strong);
+  padding: 1rem;
+  font-size: 0.83rem;
+  line-height: 1.45;
+}
+
+.review-decision--approved strong {
+  color: var(--green);
+}
+
+.review-decision--returned strong {
+  color: var(--amber);
+}
+
+.review-decision--restricted {
+  border-color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 7%, var(--surface));
+}
+
+.review-decision--restricted strong {
+  color: var(--amber);
 }
 
 @media (max-width: 1050px) {
@@ -417,6 +543,10 @@ a {
 
   .review-layout {
     grid-template-columns: 1fr;
+  }
+
+  .review-inbox {
+    padding-inline: 1.75rem;
   }
 
   .review-detail {
@@ -466,6 +596,12 @@ a {
     padding: 1.5rem;
   }
 
+  .review-inbox {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+    padding: 1.35rem 1.5rem;
+  }
+
   .review-monogram {
     width: 54px;
     height: 54px;
@@ -474,6 +610,10 @@ a {
 
   .review-layout {
     padding: 0.75rem;
+  }
+
+  .review-ledger-heading {
+    padding-inline: 1.25rem;
   }
 }
 
@@ -484,6 +624,32 @@ a {
 
   .ledger-row {
     gap: 0.65rem;
+  }
+
+  .review-header {
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .review-header > div:last-child {
+    padding-top: 0.35rem;
+  }
+
+  .review-monogram {
+    display: none;
+  }
+
+  .review-ledger-heading {
+    display: grid;
+  }
+
+  .review-ledger-heading > div:last-child {
+    justify-items: start;
+  }
+
+  .review-table th,
+  .review-table td {
+    padding-inline: 0.75rem;
   }
 }
 

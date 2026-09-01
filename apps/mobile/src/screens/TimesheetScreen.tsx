@@ -1,27 +1,76 @@
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../app/AppProvider';
 import { LedgerRow } from '../components/LedgerRow';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { calculateEntriesTotalMinutes } from '../domain/logic';
-import { DEMO_PERIOD_ID } from '../data/database';
+import { DEMO_CLIENT_IDS, DEMO_PERIOD_ID } from '../data/database';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, fonts, radius, sharedStyles } from '../theme';
 
-const weekDates = ['2026-08-24', '2026-08-25', '2026-08-26', '2026-08-27', '2026-08-28', '2026-08-29', '2026-08-30'];
+const periodWeeks = [
+  {
+    label: 'Aug 24–30',
+    dates: ['2026-08-24', '2026-08-25', '2026-08-26', '2026-08-27', '2026-08-28', '2026-08-29', '2026-08-30'],
+  },
+  {
+    label: 'Aug 31–Sep 06',
+    dates: ['2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05', '2026-09-06'],
+  },
+] as const;
+
+const canonicalEntryIds = new Set<string>([
+  DEMO_CLIENT_IDS.apiMonday,
+  DEMO_CLIENT_IDS.apiTuesdayAttention,
+  DEMO_CLIENT_IDS.apiWednesday,
+  DEMO_CLIENT_IDS.apiThursday,
+]);
 
 export function TimesheetScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { entries, connectionStatus, isSyncing } = useApp();
+  const { entries, connectionStatus, isSyncing, checkForUpdates } = useApp();
   const [view, setView] = useState<'week' | 'summary'>('week');
-  const weekEntries = entries.filter((entry) => entry.periodId === DEMO_PERIOD_ID && weekDates.includes(entry.workDate));
-  const total = calculateEntriesTotalMinutes(weekEntries) / 60;
-  const approved = weekEntries.filter((entry) => entry.status === 'APPROVED' || entry.status === 'PAYROLL_READY').length;
-  const attention = weekEntries.filter((entry) => entry.status === 'NEEDS_ATTENTION').length;
-  const pending = weekEntries.filter((entry) => entry.status === 'PENDING_SYNC' || entry.status === 'SUBMITTED').length;
+  const periodEntries = useMemo(
+    () => entries.filter((entry) => entry.periodId === DEMO_PERIOD_ID),
+    [entries],
+  );
+  const [selectedWeek, setSelectedWeek] = useState(0);
+  const weekDates = (periodWeeks[selectedWeek] ?? periodWeeks[0]).dates;
+  const weekEntries = periodEntries.filter((entry) =>
+    (weekDates as readonly string[]).includes(entry.workDate),
+  );
+  const total = calculateEntriesTotalMinutes(periodEntries) / 60;
+  const payrollReady = periodEntries.filter((entry) => entry.status === 'PAYROLL_READY').length;
+  const sampleApproved = periodEntries.filter((entry) => entry.status === 'APPROVED').length;
+  const attention = periodEntries.filter((entry) => entry.status === 'NEEDS_ATTENTION').length;
+  const returned = periodEntries.filter((entry) => entry.status === 'RETURNED').length;
+  const pending = periodEntries.filter((entry) => entry.status === 'PENDING_SYNC').length;
+  const readyForReview = periodEntries.filter((entry) => entry.status === 'SUBMITTED').length;
+  const localDemo = periodEntries.filter((entry) => entry.status === 'LOCAL_DEMO').length;
+  const autoSelectedEntryId = useRef<string | null>(null);
+
+  useEffect(() => {
+    const latestMobileEntry = [...periodEntries]
+      .filter((entry) => !canonicalEntryIds.has(entry.id))
+      .sort((left, right) => right.localCreatedAt.localeCompare(left.localCreatedAt))[0];
+    if (!latestMobileEntry || autoSelectedEntryId.current === latestMobileEntry.id) return;
+    const nextWeek = periodWeeks.findIndex((week) =>
+      (week.dates as readonly string[]).includes(latestMobileEntry.workDate),
+    );
+    if (nextWeek >= 0) {
+      autoSelectedEntryId.current = latestMobileEntry.id;
+      setSelectedWeek(nextWeek);
+    }
+  }, [periodEntries]);
+
+  useFocusEffect(useCallback(() => {
+    void checkForUpdates();
+    const timer = setInterval(() => void checkForUpdates(), 12_000);
+    return () => clearInterval(timer);
+  }, [checkForUpdates]));
   return (
     <SafeAreaView style={sharedStyles.page} edges={['top']}>
       <ScrollView contentContainerStyle={sharedStyles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -42,25 +91,46 @@ export function TimesheetScreen() {
           ))}
         </View>
         {view === 'week' ? (
-          <View style={styles.ledger}>
-            {weekDates.map((date) => {
-              const entry = entries.find((candidate) => candidate.periodId === DEMO_PERIOD_ID && candidate.workDate === date);
-              return (
-                <LedgerRow
-                  key={date}
-                  date={date}
-                  entry={entry}
-                  detailed
-                  onPress={entry?.status === 'NEEDS_ATTENTION' ? () => navigation.navigate('Attention', { entryId: entry.id }) : undefined}
-                />
-              );
-            })}
+          <View>
+            <View style={styles.weekSwitcher} accessibilityRole="tablist">
+              {periodWeeks.map((week, index) => (
+                <Pressable
+                  key={week.label}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: selectedWeek === index }}
+                  onPress={() => setSelectedWeek(index)}
+                  style={[styles.weekButton, selectedWeek === index && styles.weekButtonSelected]}
+                >
+                  <Text style={[styles.weekButtonText, selectedWeek === index && styles.weekButtonTextSelected]}>
+                    {week.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.ledger}>
+              {weekDates.map((date) => {
+                const entry = weekEntries.find((candidate) => candidate.workDate === date);
+                return (
+                  <LedgerRow
+                    key={date}
+                    date={date}
+                    entry={entry}
+                    detailed
+                    onPress={entry?.status === 'NEEDS_ATTENTION' ? () => navigation.navigate('Attention', { entryId: entry.id }) : undefined}
+                  />
+                );
+              })}
+            </View>
           </View>
         ) : (
           <View style={styles.summary}>
-            <SummaryRow label="Approved" value={approved} color={colors.green} />
+            <SummaryRow label="Payroll ready" value={payrollReady} color={colors.green} />
+            {sampleApproved > 0 && <SummaryRow label="Approved sample" value={sampleApproved} color={colors.greenDark} />}
+            <SummaryRow label="Ready for manager" value={readyForReview} color={colors.blue} />
             <SummaryRow label="Needs attention" value={attention} color={colors.amber} />
-            <SummaryRow label="Waiting or submitted" value={pending} color={colors.slate} />
+            {returned > 0 && <SummaryRow label="Returned by manager" value={returned} color={colors.amberDark} />}
+            {localDemo > 0 && <SummaryRow label="Local demo only" value={localDemo} color={colors.blue} />}
+            <SummaryRow label="Pending sync" value={pending} color={colors.slate} />
           </View>
         )}
         <View style={styles.totalCard}>
@@ -88,6 +158,11 @@ const styles = StyleSheet.create({
   segmentSelected: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.dividerStrong, borderRadius: radius.md },
   segmentText: { fontFamily: fonts.sansMedium, fontSize: 17, color: colors.slate },
   segmentTextSelected: { color: colors.navy, fontFamily: fonts.sansSemiBold },
+  weekSwitcher: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  weekButton: { flex: 1, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.divider, borderRadius: radius.sm, backgroundColor: colors.paperLight },
+  weekButtonSelected: { borderColor: colors.blue, backgroundColor: '#EEF4FC' },
+  weekButtonText: { fontFamily: fonts.mono, fontSize: 12, color: colors.slate },
+  weekButtonTextSelected: { color: colors.blue, fontFamily: fonts.monoSemiBold },
   ledger: { marginBottom: 18 },
   summary: { paddingVertical: 8, marginBottom: 18 },
   summaryRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.divider },

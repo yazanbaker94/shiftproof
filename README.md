@@ -4,7 +4,7 @@
 
 ShiftProof is an independent, offline-first timecard engineering demo. It follows one employee entry from a durable Android save, through safe synchronization and human review, to an API-issued approval receipt.
 
-It is a portfolio project, not a Wagepoint product. Wagepoint did not commission, sponsor, or approve it. All people, dates, hours, notes, identifiers, and review decisions in the demo are synthetic.
+It is a portfolio project, not a Wagepoint product or payroll engine. Wagepoint did not commission, sponsor, or approve it. All people, dates, hours, notes, identifiers, and review decisions in the demo are synthetic.
 
 ## Review the finished build
 
@@ -13,7 +13,9 @@ It is a portfolio project, not a Wagepoint product. Wagepoint did not commission
 - [Download the Android reviewer APK](https://github.com/yazanbaker94/shiftproof/releases/latest/download/shiftproof-release-arm64-v8a.apk)
 - [Browse the source and documentation](https://github.com/yazanbaker94/shiftproof)
 
-The Android APK is an ARM64 reviewer build for modern physical Android devices. It uses the same HTTPS API deployment as the manager review, while each mobile-created record gets an isolated reviewer ledger so the shared public scenario remains deterministic.
+The Android APK is an ARM64 reviewer build for modern physical Android devices. It uses the same HTTPS API deployment as the manager review. Each mobile-created entry synchronizes into its own reviewer submission. `/review` shows a bounded, newest-first inbox of the 25 most recent submissions and loads the selected record's full evidence separately. The deterministic Sarah Chen scenario remains available as an explicitly labeled, read-only sample.
+
+The published manager page is inspect-only. Production review decisions require an optional private reviewer capability link; without that capability, a visitor can examine connected synthetic records but cannot approve or return them.
 
 ## What to review
 
@@ -21,7 +23,7 @@ The Android APK is an ARM64 reviewer build for modern physical Android devices. 
 | --- | --- | --- |
 | `apps/mobile` | Employee Android app | SQLite durability, automatic connectivity-aware synchronization, a persisted retry queue, stable request IDs, and accessible status marks |
 | `apps/api` | Fastify service | Validated REST commands, idempotent creates, operation recovery, review decisions, and append-only evidence |
-| `apps/web` | Case study and manager ledger | A reviewer can inspect the unusual entry and approve or return it; the UI labels whether it is using the API or an isolated preview |
+| `apps/web` | Case study and manager ledger | A reviewer can inspect recent live submissions and the read-only sample; a private reviewer capability can authorize an exact-record approve or return decision |
 | `packages/contracts` | Shared vocabulary | Zod schemas and TypeScript types for entries, timesheets, operations, revisions, and events |
 | `infra` | Deployment path | PostgreSQL, API, web, and Caddy services with health checks and bounded container resources |
 
@@ -30,13 +32,13 @@ The design is intentionally narrow: one reliable workflow is implemented end to 
 ## The 90-second flow
 
 1. In **Profile → Reviewer controls**, choose **Simulate offline**. This control is intentionally kept out of the employee's normal workflow.
-2. Add or edit hours and save. SQLite commits the entry and its outbound operation in one transaction.
+2. Record hours—optionally loading the `16.0 h` review example—and save. SQLite commits the entry and its outbound operation in one transaction.
 3. The app shows a local proof slip only after that transaction completes.
 4. Choose **Automatic** again. If the device has internet, the queued command synchronizes without a manual button and uses the same idempotency key on every retry.
-5. Load or record the `16.0 h` example. ShiftProof flags it using an explicitly demo-only review heuristic.
-6. Add context and submit the entry for review.
-7. In the web manager ledger, inspect the entry and choose **Approve** or **Return**.
-8. When the web ledger is connected to the API, that decision appends a revision and event; approval also creates a stable receipt ID and timestamp.
+5. Open `/review`. The synchronized mobile entry appears in the recent live-submission inbox, separate from the labeled sample scenario; selecting it loads its full detail.
+6. The public page is read-only. When demonstrating a decision, open the separately supplied private reviewer capability link, then choose **Approve** or **Return** on the exact submission.
+7. The API appends the authorized decision and its evidence; approval also creates a stable receipt ID and timestamp.
+8. Keep the Android **Timesheet** screen open for its 12-second decision check, bring the app to the foreground, or let the next automatic online pass run. Approval becomes **Payroll ready**. A return becomes **Returned by manager** and remains read-only; this narrow demo does not implement correction and resubmission.
 
 For the exact reviewer path and the meaning of each mode, see [Reviewer demo script](docs/demo-script.md). For persistence and recovery details, see [Architecture](docs/architecture.md).
 
@@ -62,7 +64,10 @@ For the exact reviewer path and the meaning of each mode, see [Reviewer demo scr
 - Rejection of the same key with a different payload
 - In-memory and PostgreSQL API repositories
 - Append-only timesheet events and revisions
-- Connected manager approve/return commands, plus a clearly labeled browser-only preview fallback
+- A bounded manager inbox containing lightweight summaries for the 25 most recent mobile submissions
+- Separate exact-record detail loading, with the shared sample clearly labeled and read-only
+- Capability-gated approve/return commands against the selected submission's exact ID; the public production page can inspect but not mutate
+- Android reconciliation of a connected decision during automatic sync, on foreground, and every 12 seconds while the Timesheet screen is visible
 - API tests for replay, key collision, unusual-hours review, confirmation, approval, and return
 
 ## What is seeded or illustrative
@@ -72,13 +77,14 @@ The Sarah Chen scenario, pay period, `16.0 h` entry, manager identity, notes, an
 Runtime behavior depends on configuration:
 
 - **Mobile without `EXPO_PUBLIC_API_URL`:** SQLite and the queue are real, but synchronization uses an on-device demo response. No remote server is contacted.
-- **Mobile with `EXPO_PUBLIC_API_URL`:** create, recovery, confirm, and reconciliation use the REST API.
+- **Mobile with `EXPO_PUBLIC_API_URL`:** create, recovery, confirm, and reconciliation use the REST API. A synchronized entry becomes an isolated live reviewer submission, not a mutation of the public sample.
 - **API without `DATABASE_URL`:** the in-memory repository is real process state but resets when the API restarts.
 - **API with `DATABASE_URL`:** PostgreSQL stores operations, entries, events, revisions, and decisions across restarts.
-- **Web with an available API:** the ledger reads and mutates the API record and displays **Live record**.
-- **Web without an available API:** it displays **Isolated preview**; approve/return changes only browser state and disappears on refresh.
+- **Web with an available API:** `/review` receives at most 25 lightweight submission summaries, then fetches full detail only for the selected record. The deterministic public record remains available as a read-only **Sample scenario**.
+- **Public production review:** connected records can be inspected, but approve/return controls require a separately supplied private reviewer capability link. The shared sample is never mutable.
+- **Web without an available API:** it displays a **Read-only preview**; no browser-only decision is presented as persisted.
 
-The polished mobile approval-receipt screen is part of the seeded scenario. The API does issue a real `receiptId` and `approvedAt` value after a connected approval, and mobile reconciliation stores the returned receipt ID, but the current receipt screen's display copy uses fixed demo values.
+The Android timesheet list genuinely reconciles a connected manager approval and changes the matching entry to **Payroll ready**. It also preserves a manager return as a read-only **Returned by manager** state; correction and resubmission are outside this narrow demo. The polished approval-receipt detail screen remains part of the seeded Sarah Chen scenario: the API issues a real `receiptId` and `approvedAt`, and mobile stores the returned receipt ID, but that detail screen's visible period, timestamp, and receipt copy use fixed demo values.
 
 ## Repository map
 
@@ -156,4 +162,4 @@ The build script writes generated APKs under `apps/mobile/dist/android/`. APKs a
 
 ## Privacy and product boundary
 
-ShiftProof contains no real employee, payroll, customer, or Wagepoint data. It records time evidence and review decisions; it does not calculate wages, taxes, statutory overtime, eligibility, remittances, or payroll results.
+ShiftProof contains no real employee, payroll, customer, or Wagepoint data. It is not a payroll engine: it records time evidence and review decisions but does not calculate wages, taxes, statutory overtime, eligibility, remittances, or payroll results.
