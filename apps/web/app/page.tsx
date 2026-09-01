@@ -1,11 +1,8 @@
+import Image from 'next/image';
 import Link from 'next/link';
 
-const proofRows = [
-  { day: 'MON', date: '24', hours: '8.0 h', state: 'verified' },
-  { day: 'TUE', date: '25', hours: '16.0 h', state: 'attention' },
-  { day: 'WED', date: '26', hours: '8.0 h', state: 'verified' },
-  { day: 'THU', date: '27', hours: '7.5 h', state: 'local' },
-] as const;
+const androidApkUrl =
+  'https://github.com/yazanbaker94/shiftproof/releases/latest/download/shiftproof-release-arm64-v8a.apk';
 
 export default function Home() {
   return (
@@ -18,80 +15,63 @@ export default function Home() {
           <Link className="link-underline hidden sm:inline" href="#engineering">
             Engineering notes
           </Link>
-          <Link className="link-underline" href="/review">
-            Manager review
-          </Link>
+          <a className="link-underline font-semibold text-[var(--green)]" href={androidApkUrl}>
+            Download Android
+          </a>
         </nav>
       </header>
 
       <section className="mx-auto grid max-w-[1180px] gap-12 px-6 py-16 sm:px-10 lg:grid-cols-[1.02fr_.98fr] lg:items-center lg:py-24">
         <div>
-          <p className="proof-meta mb-6">OFFLINE-FIRST TIME EVIDENCE / BUILD 01</p>
+          <p className="proof-meta mb-6">REACT NATIVE ANDROID + MANAGER WEB / BUILD 01</p>
           <h1 className="max-w-[720px] text-[clamp(3.6rem,8vw,7.4rem)] font-semibold leading-[.84] tracking-[-.065em]">
             Hours worked.
             <br />
             <span className="text-[var(--green)]">Proof earned.</span>
           </h1>
           <p className="mt-8 max-w-[590px] text-lg leading-8 text-[var(--slate)] sm:text-xl">
-            A native timecard that saves work before the network returns, retries
-            safely, and turns every approval into a durable receipt.
+            A working React Native Android timecard that saves work before the network
+            returns, synchronizes safely, and reflects manager approval back on the device.
           </p>
           <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-            <Link className="primary-action" href="/review">
-              Open manager review <span aria-hidden="true">→</span>
-            </Link>
-            <a className="secondary-action" href="#engineering">
-              Read the system notes
+            <a className="primary-action" href={androidApkUrl}>
+              Download Android APK <span aria-hidden="true">↓</span>
             </a>
+            <Link className="secondary-action" href="/review">
+              Open manager web <span aria-hidden="true">→</span>
+            </Link>
           </div>
+          <p className="mt-4 text-sm leading-6 text-[var(--slate)]">
+            ARM64 reviewer build for modern Android devices.{' '}
+            <a
+              className="link-underline font-semibold text-[var(--ink)]"
+              href="https://github.com/yazanbaker94/shiftproof"
+              rel="noreferrer"
+              target="_blank"
+            >
+              View source + documentation
+            </a>
+          </p>
         </div>
 
-        <div className="proof-sheet" aria-label="Example ShiftProof employee record">
-          <div className="flex items-center justify-between border-b border-dashed border-[var(--line-strong)] pb-5">
-            <div>
-              <p className="proof-meta">CURRENT PERIOD</p>
-              <p className="mt-2 text-2xl font-semibold">Aug 24 — Sep 06</p>
-            </div>
-            <div className="connectivity-status">
-              <span className="status-dot bg-[var(--amber)]" aria-hidden="true" />
-              Saved offline
-            </div>
+        <div className="mobile-proof" aria-label="ShiftProof Android app preview">
+          <div className="mobile-proof__caption">
+            <span className="proof-meta text-[var(--green)]">ANDROID APP / LIVE BUILD</span>
+            <span className="proof-meta">APPROVAL RECONCILED</span>
           </div>
-
-          <div className="flex items-end justify-between py-7">
-            <div>
-              <p className="proof-meta">RECORDED</p>
-              <p className="hours-display mt-1">39.5<span> h</span></p>
-            </div>
-            <p className="proof-id">SP/L-01928</p>
+          <div className="mobile-proof__device">
+            <Image
+              alt="ShiftProof Android timesheet showing an approved entry as payroll ready"
+              className="mobile-proof__screen"
+              height={2424}
+              priority
+              src="/shiftproof-android-timesheet-approved.png"
+              width={1080}
+            />
           </div>
-
-          <div className="ledger" role="list" aria-label="Recent time entries">
-            {proofRows.map((row) => (
-              <div className="ledger-row" role="listitem" key={row.day}>
-                <span className="proof-meta w-12">{row.day}</span>
-                <span className="text-[var(--slate)]">{row.date}</span>
-                <span className="ml-auto tabular-nums">{row.hours}</span>
-                <span
-                  className={`proof-mark proof-mark--${row.state}`}
-                  aria-label={
-                    row.state === 'verified'
-                      ? 'Verified'
-                      : row.state === 'attention'
-                        ? 'Needs attention'
-                        : 'Saved locally, pending sync'
-                  }
-                >
-                  {row.state === 'attention' ? '!' : ''}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-7 flex items-center justify-between border-t border-dashed border-[var(--line-strong)] pt-5">
-            <p className="text-sm text-[var(--slate)]">Queued safely on this device</p>
-            <p className="proof-meta text-[var(--green)]">○ → ●</p>
-          </div>
+          <p className="mobile-proof__note">
+            The manager decision above is returned to the React Native app—not simulated as a web-only state.
+          </p>
         </div>
       </section>
 
