@@ -14,7 +14,7 @@ import { colors, fonts, radius, sharedStyles } from '../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'Receipt'>;
 
 export function ApprovedReceiptScreen({ navigation }: Props) {
-  const { entries, isOnline } = useApp();
+  const { entries, connectionStatus } = useApp();
   const weekEntries = entries.filter((entry) => entry.periodId === REVIEW_SNAPSHOT_PERIOD_ID);
   const total = calculateEntriesTotalMinutes(weekEntries) / 60 || 39.5;
   const receiptText = `ShiftProof receipt SP-82F14\nAug 24 – Sep 06\n${total.toFixed(1)} hours\nApproved Sep 01, 2026 at 12:42 AM\nReady for payroll.`;
@@ -22,7 +22,7 @@ export function ApprovedReceiptScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={sharedStyles.page} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}><ProofMark /><ConnectivityStatus online={isOnline} /></View>
+        <View style={styles.header}><ProofMark /><ConnectivityStatus online={connectionStatus} /></View>
         <View style={styles.receipt}>
           <View style={styles.approvedMark}><Icon name="check" size={57} color={colors.green} strokeWidth={1.9} /></View>
           <Text style={styles.approved}>APPROVED</Text>

@@ -27,6 +27,11 @@ export type EntryMutationResult = {
 export interface ShiftProofRepository {
   health(): Promise<{ ok: boolean; storage: "memory" | "postgres" }>;
   getOperation(key: string): Promise<IdempotencyOperation | null>;
+  ensureReviewerTimesheet(
+    id: string,
+    employeeId: string,
+    workDate: string,
+  ): Promise<void>;
   createTimeEntryIdempotent(
     body: CreateTimeEntryBody,
     operationKey: string,

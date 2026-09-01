@@ -5,37 +5,38 @@ import { colors, fonts, radius } from '../theme';
 export function DemoNetworkControl({ quiet = false }: { quiet?: boolean }) {
   const { demoNetworkMode, setDemoNetworkMode, actualNetworkReachable } = useApp();
   return (
-    <View style={[styles.container, quiet && styles.quiet]} accessibilityLabel="Demo network control">
+    <View style={[styles.container, quiet && styles.quiet]} accessibilityLabel="Reviewer network simulation">
       <View style={styles.copy}>
-        <Text style={styles.eyebrow}>DEMO NETWORK</Text>
+        <Text style={styles.eyebrow}>REVIEWER NETWORK SIMULATION</Text>
         {!quiet && (
           <Text style={styles.hint}>
-            Force offline to save locally, then switch online to sync.
+            Normal syncing follows the device connection. Simulate offline only to review local saving.
           </Text>
         )}
       </View>
       <View style={styles.segment}>
-        {(['offline', 'online'] as const).map((mode) => {
+        {(['automatic', 'offline'] as const).map((mode) => {
           const selected = demoNetworkMode === mode;
+          const automatic = mode === 'automatic';
           return (
             <Pressable
               key={mode}
               accessibilityRole="button"
               accessibilityState={{ selected }}
-              accessibilityLabel={`Set demo network ${mode}`}
+              accessibilityLabel={automatic ? 'Use device connection automatically' : 'Simulate an offline connection'}
               onPress={() => setDemoNetworkMode(mode)}
               style={({ pressed }) => [styles.option, selected && styles.selected, pressed && styles.pressed]}
             >
-              <View style={[styles.optionDot, { backgroundColor: mode === 'online' ? colors.green : colors.amber }]} />
+              <View style={[styles.optionDot, { backgroundColor: automatic ? colors.green : colors.amber }]} />
               <Text style={[styles.optionText, selected && styles.selectedText]}>
-                {mode === 'online' ? 'Online' : 'Offline'}
+                {automatic ? 'Automatic' : 'Simulate offline'}
               </Text>
             </Pressable>
           );
         })}
       </View>
-      {!quiet && actualNetworkReachable === false && demoNetworkMode === 'online' && (
-        <Text style={styles.physicalWarning}>Device internet is unavailable; the local demo fallback remains safe.</Text>
+      {!quiet && actualNetworkReachable === false && demoNetworkMode === 'automatic' && (
+        <Text style={styles.physicalWarning}>Device internet is unavailable. Entries will sync automatically when it returns.</Text>
       )}
     </View>
   );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextAttemptIso, nextRetryDelayMs, shouldAttempt } from '../src/data/queuePolicy';
+import { nextAttemptIso, nextQueueWakeDelayMs, nextRetryDelayMs, shouldAttempt } from '../src/data/queuePolicy';
 
 describe('durable queue retry policy', () => {
   it('uses capped exponential delays', () => {
@@ -18,5 +18,18 @@ describe('durable queue retry policy', () => {
   it('produces deterministic retry timestamps for telemetry and tests', () => {
     const now = Date.parse('2026-09-01T00:00:00.000Z');
     expect(nextAttemptIso(2, now)).toBe('2026-09-01T00:00:04.000Z');
+  });
+
+  it('schedules immediate work and the earliest deferred retry', () => {
+    const now = Date.parse('2026-09-01T00:00:00.000Z');
+    expect(nextQueueWakeDelayMs([
+      { status: 'WAITING_RETRY', nextAttemptAt: '2026-09-01T00:00:05.000Z' },
+      { status: 'WAITING_RETRY', nextAttemptAt: '2026-09-01T00:00:02.000Z' },
+    ], now)).toBe(2_000);
+    expect(nextQueueWakeDelayMs([
+      { status: 'WAITING_RETRY', nextAttemptAt: '2026-09-01T00:00:05.000Z' },
+      { status: 'PENDING', nextAttemptAt: null },
+    ], now)).toBe(0);
+    expect(nextQueueWakeDelayMs([], now)).toBeNull();
   });
 });

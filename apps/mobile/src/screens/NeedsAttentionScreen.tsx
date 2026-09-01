@@ -13,7 +13,7 @@ import { colors, fonts, radius, sharedStyles } from '../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'Attention'>;
 
 export function NeedsAttentionScreen({ navigation, route }: Props) {
-  const { findEntry, confirmEntry, isOnline } = useApp();
+  const { findEntry, confirmEntry, connectionStatus } = useApp();
   const entry = findEntry(route.params.entryId);
   const [note, setNote] = useState(entry?.note ?? 'Emergency inventory count after closing.');
   const [submitting, setSubmitting] = useState(false);
@@ -38,7 +38,7 @@ export function NeedsAttentionScreen({ navigation, route }: Props) {
     <SafeAreaView style={sharedStyles.page} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <ScreenHeader kind="title" title="Entry needs attention" onBack={() => navigation.goBack()} online={isOnline} />
+          <ScreenHeader kind="title" title="Entry needs attention" onBack={() => navigation.goBack()} online={connectionStatus} />
           <Text style={styles.date}>{dateLabel}</Text>
           <View style={styles.attentionCard}>
             <View style={styles.hoursRow}><Text style={styles.hours}>{formatDecimalHours(total)}</Text><Text style={styles.hoursUnit}> hours</Text></View>

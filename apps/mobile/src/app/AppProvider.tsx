@@ -2,16 +2,20 @@ import NetInfo from '@react-native-community/netinfo';
 import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
 import { useSQLiteContext } from 'expo-sqlite';
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { AppState } from 'react-native';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { DraftEntry, DemoNetworkMode, TimeEntry } from '../domain/types';
+import { resolveOnlineState } from '../domain/connectivity';
 import { resetDemoDatabase } from '../data/database';
 import {
   confirmEntryAndEnqueue,
+  getSyncQueueSnapshot,
   getEntry,
   listEntries,
   saveEntryAndEnqueue,
 } from '../data/repository';
 import { reconcileTimesheet, syncPendingOperations, type SyncSummary } from '../data/sync';
+import { AutomaticSyncCoordinator } from '../data/syncCoordinator';
 import { logger } from '../observability/logger';
 
 interface AppContextValue {
@@ -20,14 +24,15 @@ interface AppContextValue {
   demoNetworkMode: DemoNetworkMode;
   setDemoNetworkMode: (mode: DemoNetworkMode) => void;
   isOnline: boolean;
+  connectionStatus: boolean | null;
   actualNetworkReachable: boolean | null;
   isSyncing: boolean;
   lastSyncSummary: SyncSummary | null;
+  pendingOperationCount: number;
   saveEntry: (draft: DraftEntry) => Promise<TimeEntry>;
   confirmEntry: (entryId: string, note: string) => Promise<void>;
   findEntry: (entryId: string) => TimeEntry | undefined;
   refresh: () => Promise<void>;
-  syncNow: () => Promise<SyncSummary>;
   resetDemo: () => Promise<void>;
 }
 
@@ -38,13 +43,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const db = useSQLiteContext();
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [hydrated, setHydrated] = useState(false);
-  const [demoNetworkMode, setDemoNetworkModeState] = useState<DemoNetworkMode>('online');
+  const [demoNetworkMode, setDemoNetworkModeState] = useState<DemoNetworkMode>('automatic');
   const [actualNetworkReachable, setActualNetworkReachable] = useState<boolean | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncSummary, setLastSyncSummary] = useState<SyncSummary | null>(null);
+  const [pendingOperationCount, setPendingOperationCount] = useState(0);
+  const [nextSyncWakeAtMs, setNextSyncWakeAtMs] = useState<number | null>(null);
+  const syncCoordinator = useRef(new AutomaticSyncCoordinator()).current;
+  const onlineRef = useRef(false);
 
   const refresh = useCallback(async () => {
-    setEntries(await listEntries(db));
+    const [nextEntries, queue] = await Promise.all([listEntries(db), getSyncQueueSnapshot(db)]);
+    setEntries(nextEntries);
+    setPendingOperationCount(queue.pendingCount);
+    setNextSyncWakeAtMs(queue.nextWakeAtMs);
   }, [db]);
 
   useEffect(() => {
@@ -61,34 +73,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActualNetworkReachable(state.isInternetReachable ?? state.isConnected ?? null);
   }), []);
 
-  const isOnline = demoNetworkMode === 'online';
+  const isOnline = resolveOnlineState(demoNetworkMode, actualNetworkReachable);
+  const connectionStatus = demoNetworkMode === 'offline' ? false : actualNetworkReachable;
+  onlineRef.current = isOnline;
 
   const syncNow = useCallback(async (): Promise<SyncSummary> => {
-    if (demoNetworkMode === 'offline') {
+    if (!isOnline) {
       const skipped = { attempted: 0, succeeded: 0, failed: 0 };
       setLastSyncSummary(skipped);
       return skipped;
     }
-    setIsSyncing(true);
+    const wasRunning = syncCoordinator.running;
+    if (!wasRunning) setIsSyncing(true);
     try {
-      const summary = await syncPendingOperations(db, apiUrl);
-      await reconcileTimesheet(db, apiUrl);
-      await refresh();
+      const summary = await syncCoordinator.request(async () => {
+        const pass = await syncPendingOperations(db, apiUrl);
+        await reconcileTimesheet(db, apiUrl);
+        await refresh();
+        return pass;
+      }, () => onlineRef.current);
       setLastSyncSummary(summary);
       return summary;
     } finally {
-      setIsSyncing(false);
+      if (!syncCoordinator.running) setIsSyncing(false);
     }
-  }, [db, demoNetworkMode, refresh]);
+  }, [db, isOnline, refresh, syncCoordinator]);
 
   useEffect(() => {
-    if (!hydrated || demoNetworkMode !== 'online') return;
-    void syncNow();
-  }, [demoNetworkMode, hydrated, syncNow]);
+    if (!hydrated || !isOnline) return;
+    void syncNow().catch((error) => logger.error('automatic_sync_failed', { message: String(error) }));
+  }, [hydrated, isOnline, syncNow]);
+
+  useEffect(() => {
+    if (!hydrated || !isOnline || nextSyncWakeAtMs === null) return;
+    const timer = setTimeout(() => {
+      void syncNow().catch((error) => logger.error('scheduled_sync_failed', { message: String(error) }));
+    }, Math.max(25, nextSyncWakeAtMs - Date.now()));
+    return () => clearTimeout(timer);
+  }, [hydrated, isOnline, nextSyncWakeAtMs, syncNow]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      void NetInfo.fetch().then((network) => {
+        const reachable = network.isInternetReachable ?? network.isConnected ?? null;
+        setActualNetworkReachable(reachable);
+        if (reachable === true && onlineRef.current) {
+          void syncNow().catch((error) => logger.error('foreground_sync_failed', { message: String(error) }));
+        }
+      });
+    });
+    return () => subscription.remove();
+  }, [syncNow]);
 
   const setDemoNetworkMode = useCallback((mode: DemoNetworkMode) => {
     setDemoNetworkModeState(mode);
-    logger.info('demo_network_changed', { mode });
+    logger.info('network_simulation_changed', { mode });
     void Haptics.selectionAsync();
   }, []);
 
@@ -102,21 +142,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       key: result.operation.idempotencyKey,
       workDate: draft.workDate,
     });
-    if (demoNetworkMode === 'online') void syncNow();
+    if (isOnline) {
+      void syncNow().catch((error) => logger.error('automatic_sync_failed', { message: String(error) }));
+    }
     return result.entry;
-  }, [db, demoNetworkMode, refresh, syncNow]);
+  }, [db, isOnline, refresh, syncNow]);
 
   const confirmEntry = useCallback(async (entryId: string, note: string): Promise<void> => {
     await confirmEntryAndEnqueue(db, entryId, note, Crypto.randomUUID());
     await refresh();
-    if (demoNetworkMode === 'online') await syncNow();
+    if (isOnline) await syncNow();
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [db, demoNetworkMode, refresh, syncNow]);
+  }, [db, isOnline, refresh, syncNow]);
 
   const resetDemo = useCallback(async () => {
     await resetDemoDatabase(db);
     await refresh();
     setLastSyncSummary(null);
+    setDemoNetworkModeState('automatic');
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [db, refresh]);
 
@@ -126,29 +169,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     demoNetworkMode,
     setDemoNetworkMode,
     isOnline,
+    connectionStatus,
     actualNetworkReachable,
     isSyncing,
     lastSyncSummary,
+    pendingOperationCount,
     saveEntry,
     confirmEntry,
     findEntry: (entryId: string) => entries.find((entry) => entry.id === entryId),
     refresh,
-    syncNow,
     resetDemo,
   }), [
     actualNetworkReachable,
     confirmEntry,
+    connectionStatus,
     demoNetworkMode,
     entries,
     hydrated,
     isOnline,
     isSyncing,
     lastSyncSummary,
+    pendingOperationCount,
     refresh,
     resetDemo,
     saveEntry,
     setDemoNetworkMode,
-    syncNow,
   ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

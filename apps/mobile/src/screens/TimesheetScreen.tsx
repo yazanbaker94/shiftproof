@@ -4,7 +4,6 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
 import { useApp } from '../app/AppProvider';
-import { DemoNetworkControl } from '../components/DemoNetworkControl';
 import { LedgerRow } from '../components/LedgerRow';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { calculateEntriesTotalMinutes } from '../domain/logic';
@@ -16,7 +15,7 @@ const weekDates = ['2026-08-24', '2026-08-25', '2026-08-26', '2026-08-27', '2026
 
 export function TimesheetScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { entries, isOnline, isSyncing } = useApp();
+  const { entries, connectionStatus, isSyncing } = useApp();
   const [view, setView] = useState<'week' | 'summary'>('week');
   const weekEntries = entries.filter((entry) => entry.periodId === DEMO_PERIOD_ID && weekDates.includes(entry.workDate));
   const total = calculateEntriesTotalMinutes(weekEntries) / 60;
@@ -26,8 +25,7 @@ export function TimesheetScreen() {
   return (
     <SafeAreaView style={sharedStyles.page} edges={['top']}>
       <ScrollView contentContainerStyle={sharedStyles.scrollContent} showsVerticalScrollIndicator={false}>
-        <ScreenHeader kind="brand" online={isOnline} syncing={isSyncing} />
-        <DemoNetworkControl quiet />
+        <ScreenHeader kind="brand" online={connectionStatus} syncing={isSyncing} />
         <Text style={styles.title}>Timesheet</Text>
         <Text style={styles.period}>Aug 24 – Sep 06</Text>
         <View style={styles.segment}>

@@ -14,3 +14,17 @@ export function shouldAttempt(status: string, nextAttemptAt: string | null, nowM
   if (status !== 'WAITING_RETRY') return false;
   return nextAttemptAt === null || Date.parse(nextAttemptAt) <= nowMs;
 }
+
+export function nextQueueWakeDelayMs(
+  operations: Array<{ status: string; nextAttemptAt: string | null }>,
+  nowMs = Date.now(),
+): number | null {
+  let earliest = Number.POSITIVE_INFINITY;
+  for (const operation of operations) {
+    if (operation.status === 'PENDING' || operation.status === 'SYNCING') return 0;
+    if (operation.status !== 'WAITING_RETRY') continue;
+    const parsed = operation.nextAttemptAt ? Date.parse(operation.nextAttemptAt) : Number.NaN;
+    earliest = Math.min(earliest, Number.isFinite(parsed) ? Math.max(0, parsed - nowMs) : 0);
+  }
+  return Number.isFinite(earliest) ? earliest : null;
+}

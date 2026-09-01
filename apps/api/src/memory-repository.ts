@@ -149,6 +149,44 @@ export class MemoryShiftProofRepository implements ShiftProofRepository {
     return operation ? clone(operation) : null;
   }
 
+  async ensureReviewerTimesheet(
+    id: string,
+    employeeId: string,
+    workDate: string,
+  ): Promise<void> {
+    if (this.timesheets.has(id)) return;
+    const timestamp = nowIso();
+    this.timesheets.set(id, {
+      id,
+      employee: { id: employeeId, name: "Sarah Chen" },
+      period: {
+        start: workDate,
+        end: workDate,
+        label: `Reviewer run / ${workDate}`,
+      },
+      status: "draft",
+      totals: { regular: 0, overtime: 0, all: 0 },
+      entries: [],
+      events: [],
+      revisions: [
+        {
+          id: randomUUID(),
+          revision: 1,
+          status: "draft",
+          action: "REVIEWER_RUN_CREATED",
+          actorId: employeeId,
+          note: "Isolated mobile reviewer run",
+          createdAt: timestamp,
+        },
+      ],
+      revision: 1,
+      receiptId: null,
+      approvedAt: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+  }
+
   async createTimeEntryIdempotent(
     body: CreateTimeEntryBody,
     operationKey: string,

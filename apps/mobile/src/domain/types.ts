@@ -59,7 +59,7 @@ export interface SavedEntryResult {
   operation: SyncOperation;
 }
 
-export type DemoNetworkMode = 'online' | 'offline';
+export type DemoNetworkMode = 'automatic' | 'offline';
 
 export interface StatusPresentation {
   label: string;

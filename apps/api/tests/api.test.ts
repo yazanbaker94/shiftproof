@@ -88,6 +88,83 @@ describe("ShiftProof API", () => {
     });
   });
 
+  it("syncs each mobile reviewer run without mutating an approved shared demo", async () => {
+    const app = await testApp();
+    const approved = await app.inject({
+      method: "POST",
+      url: "/v1/timesheets/demo/approve",
+      payload: { note: "Keep the public manager example immutable" },
+    });
+    expect(approved.statusCode).toBe(200);
+    expect(approved.json().data.status).toBe("approved");
+
+    const clientId = randomUUID();
+    const key = "reviewer-mobile-op-01930";
+    const payload = {
+      clientId,
+      workDate: "2026-09-01",
+      regularMinutes: 480,
+      overtimeMinutes: 90,
+      note: "Saved offline before reconnecting",
+    };
+    const created = await app.inject({
+      method: "POST",
+      url: "/v1/reviewer/time-entries",
+      headers: { "idempotency-key": key },
+      payload,
+    });
+    const replayed = await app.inject({
+      method: "POST",
+      url: "/v1/reviewer/time-entries",
+      headers: { "idempotency-key": key },
+      payload,
+    });
+
+    expect(created.statusCode).toBe(201);
+    expect(created.json().data.entry).toMatchObject({
+      clientId,
+      timesheetId: clientId,
+      status: "synced",
+    });
+    expect(created.json().data.timesheet).toMatchObject({
+      id: clientId,
+      status: "draft",
+    });
+    expect(replayed.statusCode).toBe(201);
+    expect(replayed.headers["idempotent-replayed"]).toBe("true");
+    expect(replayed.json()).toEqual(created.json());
+
+    const secondClientId = randomUUID();
+    const secondRun = await app.inject({
+      method: "POST",
+      url: "/v1/reviewer/time-entries",
+      headers: { "idempotency-key": "reviewer-mobile-op-01931" },
+      payload: { ...payload, clientId: secondClientId },
+    });
+    expect(secondRun.statusCode).toBe(201);
+    expect(secondRun.json().data.entry.timesheetId).toBe(secondClientId);
+
+    const reviewerRun = await app.inject({
+      method: "GET",
+      url: `/v1/timesheets/${clientId}`,
+    });
+    expect(reviewerRun.statusCode).toBe(200);
+    expect(reviewerRun.json().data.entries).toHaveLength(1);
+
+    const shared = await app.inject({ method: "GET", url: "/v1/timesheets/demo" });
+    expect(shared.json().data.status).toBe("approved");
+    expect(shared.json().data.entries).toHaveLength(4);
+
+    const reserved = await app.inject({
+      method: "POST",
+      url: "/v1/reviewer/time-entries",
+      headers: { "idempotency-key": "reviewer-mobile-op-01932" },
+      payload: { ...payload, clientId: DEMO_IDS.timesheet },
+    });
+    expect(reserved.statusCode).toBe(409);
+    expect(reserved.json().error.code).toBe("REVIEWER_RUN_ID_RESERVED");
+  });
+
   it("flags exactly 16 hours, preserves review evidence, confirms, and approves", async () => {
     const app = await testApp();
     const create = await app.inject({

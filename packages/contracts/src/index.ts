@@ -128,6 +128,40 @@ export const CreateTimeEntryBodySchema = z
     }
   });
 
+export const ReviewerCreateTimeEntryBodySchema = z
+  .object({
+    clientId: UuidSchema,
+    workDate: IsoDateSchema,
+    regularMinutes: z.number().int().min(0).max(1_440),
+    overtimeMinutes: z.number().int().min(0).max(1_440),
+    note: z.string().trim().max(500).optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const total = value.regularMinutes + value.overtimeMinutes;
+    if (total <= 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "At least one minute must be recorded",
+        path: ["regularMinutes"],
+      });
+    }
+    if (total > 1_440) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Regular and overtime time cannot exceed 24 hours in one day",
+        path: ["overtimeMinutes"],
+      });
+    }
+  })
+  .transform(
+    (value): CreateTimeEntryBody => ({
+      ...value,
+      timesheetId: value.clientId,
+      employeeId: DEMO_IDS.employee,
+    }),
+  );
+
 export const ConfirmTimeEntryBodySchema = z.object({
   employeeId: UuidSchema.default(DEMO_IDS.employee),
   note: z.string().trim().min(3).max(500),
@@ -182,6 +216,9 @@ export const ErrorResponseSchema = z.object({
 });
 
 export type CreateTimeEntryBody = z.infer<typeof CreateTimeEntryBodySchema>;
+export type ReviewerCreateTimeEntryBody = z.infer<
+  typeof ReviewerCreateTimeEntryBodySchema
+>;
 export type ConfirmTimeEntryBody = z.infer<typeof ConfirmTimeEntryBodySchema>;
 export type ApproveTimesheetBody = z.infer<typeof ApproveTimesheetBodySchema>;
 export type ReturnTimesheetBody = z.infer<typeof ReturnTimesheetBodySchema>;

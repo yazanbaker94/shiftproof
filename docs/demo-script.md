@@ -28,12 +28,12 @@ Do not describe the self-contained mode as a live end-to-end backend run.
 
 ## 90-second connected walkthrough
 
-1. Open the Android **Home** screen. Point out the explicit **Demo network** control and the text-and-shape status marks.
-2. Set **Demo network** to **Offline**.
+1. Open the Android **Home** screen. Point out the connection status and that there is no manual synchronization action in the employee workflow.
+2. Open **Profile → Reviewer controls** and choose **Simulate offline**. In ordinary use, the app follows device connectivity automatically.
 3. Tap **Add hours**. Keep the default `8.0` regular + `1.5` overtime entry, or tap **Load 16.0 h review example** for the unusual-hours path.
 4. Save. The proof slip appears only after SQLite commits both the entry and queued operation. The displayed local ID remains stable across retries.
 5. Optionally close and relaunch the app. The proof and queued work remain unless app data is cleared or the demo is reset.
-6. Set **Demo network** to **Online**. The app sends due work and reconciles the server response. With the API configured, this is a real HTTP request; without it, it is the documented local-demo transport.
+6. Choose **Automatic**. When device internet is available, the app sends due work and reconciles the server response automatically—there is no manual sync action. With the API configured, this is a real HTTP request into an isolated reviewer ledger; without it, it is the documented local-demo transport.
 7. For a 16-hour entry, open **Needs attention**, keep or edit the context note, and submit for review.
 8. Open the web **Manager review** page and verify the status says **Live record** before claiming persistence.
 9. Select the amber row. **Approve** appends the decision and produces API receipt metadata. **Return** requires a manager note and appends that decision instead. Choose one; the demo API correctly prevents returning an already approved timesheet.
@@ -64,7 +64,7 @@ The current polished mobile receipt screen uses fixed Sarah Chen demo copy for i
 ## Reviewer checks
 
 - **Saved locally** corresponds to a completed SQLite transaction, not optimistic UI copy.
-- The demo network switch is a product control; the app separately observes actual device reachability.
+- Normal synchronization follows actual device reachability. The offline simulator lives only under **Reviewer controls** and is not part of the employee's everyday workflow.
 - Status always uses text and shape, not color alone.
 - **Live record** and **Isolated preview** make web persistence explicit.
 - The 16-hour threshold is labeled as a demo heuristic, never a legal or payroll rule.

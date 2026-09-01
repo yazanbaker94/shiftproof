@@ -5,7 +5,7 @@ ShiftProof separates three concerns: durable employee capture on Android, author
 ```text
 Android employee app                         Manager web ledger
 ┌──────────────────────┐                    ┌─────────────────────┐
-│ UI + demo network    │                    │ live / preview label│
+│ UI + auto network    │                    │ live / preview label│
 │ SQLite (WAL)         │                    │ approve or return   │
 │ time entry           │                    └──────────┬──────────┘
 │ queued operation     │                               │ REST
@@ -108,7 +108,7 @@ The Android app always uses real SQLite transactions and queue rows. Transport d
 - without `EXPO_PUBLIC_API_URL`, successful synchronization is simulated locally so the mobile workflow can be reviewed without infrastructure;
 - with `EXPO_PUBLIC_API_URL`, the app performs create, operation recovery, confirmation, and timesheet reconciliation against the REST API.
 
-The seeded mobile and web screens tell the same deterministic Sarah Chen scenario, but they should not be mistaken for a shared database row before a connected mobile entry has synchronized to the API. A newly created connected entry is matched by its client UUID.
+The seeded mobile and web screens tell the same deterministic Sarah Chen scenario, but they should not be mistaken for one mutable shared row. A newly created mobile entry synchronizes through the real API into an isolated reviewer ledger keyed by its stable client UUID. This keeps idempotent retries real while preventing one reviewer from approving or changing the public baseline for everyone else.
 
 ## Deliberate product boundary
 

@@ -8,8 +8,7 @@ import { buildMetadata } from '../observability/build';
 import { colors, fonts, radius, sharedStyles } from '../theme';
 
 export function ProfileScreen() {
-  const { entries, isSyncing, lastSyncSummary, syncNow, resetDemo, actualNetworkReachable } = useApp();
-  const pending = entries.filter((entry) => entry.status === 'PENDING_SYNC').length;
+  const { lastSyncSummary, pendingOperationCount, resetDemo, actualNetworkReachable } = useApp();
   const askReset = () => Alert.alert(
     'Reset the ShiftProof demo?',
     'This removes locally created demo entries and restores the seeded hiring scenario.',
@@ -22,11 +21,11 @@ export function ProfileScreen() {
     <SafeAreaView style={sharedStyles.page} edges={['top']}>
       <ScrollView contentContainerStyle={sharedStyles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.brand}><ProofMark /></View>
-        <Text style={styles.title}>Demo controls</Text>
-        <Text style={styles.intro}>Use the switch below to prove that saving does not depend on connectivity.</Text>
+        <Text style={styles.title}>Reviewer controls</Text>
+        <Text style={styles.intro}>Connectivity and synchronization are automatic. Use the simulation only to demonstrate local saving.</Text>
         <DemoNetworkControl />
         <View style={styles.stats}>
-          <Stat label="PENDING ON DEVICE" value={String(pending).padStart(2, '0')} />
+          <Stat label="PENDING ON DEVICE" value={String(pendingOperationCount).padStart(2, '0')} />
           <Stat label="DEVICE INTERNET" value={actualNetworkReachable === false ? 'OFF' : actualNetworkReachable === true ? 'ON' : '—'} />
         </View>
         {lastSyncSummary && (
@@ -34,8 +33,7 @@ export function ProfileScreen() {
             Last sync: {lastSyncSummary.succeeded} succeeded · {lastSyncSummary.failed} deferred
           </Text>
         )}
-        <PrimaryAction label="Sync now" icon="refresh" onPress={() => void syncNow()} loading={isSyncing} />
-        <View style={styles.space} />
+        <Text style={styles.automaticNote}>Pending entries synchronize automatically as soon as device internet is available.</Text>
         <PrimaryAction label="Reset demo data" onPress={askReset} variant="secondary" />
         <View style={styles.buildCard}>
           <Text style={styles.buildTitle}>BUILD EVIDENCE</Text>
@@ -67,7 +65,7 @@ const styles = StyleSheet.create({
   statValue: { fontFamily: fonts.monoSemiBold, fontSize: 27, color: colors.navy },
   statLabel: { marginTop: 5, fontFamily: fonts.mono, fontSize: 10, letterSpacing: 0.5, color: colors.slate },
   syncResult: { marginBottom: 14, fontFamily: fonts.sansMedium, fontSize: 14, color: colors.green },
-  space: { height: 10 },
+  automaticNote: { marginBottom: 16, fontFamily: fonts.sansMedium, fontSize: 14, lineHeight: 20, color: colors.navySoft },
   buildCard: { marginTop: 23, padding: 17, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.divider, borderRadius: radius.md, backgroundColor: colors.paperLight },
   buildTitle: { marginBottom: 8, fontFamily: fonts.monoSemiBold, fontSize: 12, letterSpacing: 0.8, color: colors.navy },
   buildRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.divider },

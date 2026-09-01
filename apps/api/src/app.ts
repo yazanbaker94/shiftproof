@@ -6,6 +6,7 @@ import {
   DEMO_IDS,
   DEMO_REVIEW_THRESHOLD_HOURS,
   ReturnTimesheetBodySchema,
+  ReviewerCreateTimeEntryBodySchema,
   UuidSchema,
 } from "@shiftproof/contracts";
 import Fastify from "fastify";
@@ -76,6 +77,57 @@ export async function buildApp(options: BuildAppOptions) {
 
     const body = CreateTimeEntryBodySchema.parse(request.body);
     const hash = requestHash("POST /v1/time-entries", body);
+    const result = await options.repository.createTimeEntryIdempotent(
+      body,
+      operationKey,
+      hash,
+    );
+    if (result.kind === "conflict") {
+      return reply.code(409).send(
+        apiError(
+          "IDEMPOTENCY_KEY_REUSED",
+          "This idempotency key was already used with a different payload",
+          { operationKey },
+        ),
+      );
+    }
+    if (result.kind === "replayed") {
+      reply.header("Idempotent-Replayed", "true");
+    }
+    return reply
+      .code(result.operation.responseStatus)
+      .send(result.operation.response);
+  });
+
+  app.post("/v1/reviewer/time-entries", async (request, reply) => {
+    const rawKey = request.headers["idempotency-key"];
+    const operationKey = Array.isArray(rawKey) ? rawKey[0] : rawKey;
+    if (!operationKey || operationKey.length < 8 || operationKey.length > 200) {
+      return reply
+        .code(400)
+        .send(
+          apiError(
+            "IDEMPOTENCY_KEY_REQUIRED",
+            "Idempotency-Key must contain between 8 and 200 characters",
+          ),
+        );
+    }
+
+    const body = ReviewerCreateTimeEntryBodySchema.parse(request.body);
+    if (body.timesheetId === DEMO_IDS.timesheet) {
+      return reply.code(409).send(
+        apiError(
+          "REVIEWER_RUN_ID_RESERVED",
+          "This client ID is reserved for the shared demo",
+        ),
+      );
+    }
+    await options.repository.ensureReviewerTimesheet(
+      body.timesheetId,
+      body.employeeId,
+      body.workDate,
+    );
+    const hash = requestHash("POST /v1/reviewer/time-entries", body);
     const result = await options.repository.createTimeEntryIdempotent(
       body,
       operationKey,

@@ -6,8 +6,8 @@ import { ProofMark } from './ProofMark';
 import { colors, fonts } from '../theme';
 
 type Props =
-  | { kind: 'brand'; online: boolean; syncing?: boolean }
-  | { kind: 'title'; title: string; onBack: () => void; online?: boolean; rightLabel?: string; onRight?: () => void; icon?: IconName };
+  | { kind: 'brand'; online: boolean | null; syncing?: boolean }
+  | { kind: 'title'; title: string; onBack: () => void; online?: boolean | null; rightLabel?: string; onRight?: () => void; icon?: IconName };
 
 export function ScreenHeader(props: Props) {
   if (props.kind === 'brand') {

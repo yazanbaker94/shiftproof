@@ -1,16 +1,16 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts } from '../theme';
 
-interface Props { online: boolean; syncing?: boolean; compact?: boolean }
+interface Props { online: boolean | null; syncing?: boolean; compact?: boolean }
 
 export function ConnectivityStatus({ online, syncing = false, compact = false }: Props) {
-  const label = syncing ? 'Syncing' : online ? 'Online' : 'Offline';
-  const color = syncing ? colors.blue : online ? colors.green : colors.amber;
+  const label = syncing ? 'Syncing' : online === null ? 'Checking' : online ? 'Online' : 'Offline';
+  const color = syncing ? colors.blue : online === null ? colors.slate : online ? colors.green : colors.amber;
   return (
     <View
       style={styles.row}
       accessibilityRole="text"
-      accessibilityLabel={`Demo network status: ${label}`}
+      accessibilityLabel={`Connection status: ${label}`}
     >
       {syncing ? <ActivityIndicator size="small" color={color} /> : <View style={[styles.dot, { backgroundColor: color }]} />}
       <Text style={[styles.label, compact && styles.compact]}>{label}</Text>

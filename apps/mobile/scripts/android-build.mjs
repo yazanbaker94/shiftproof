@@ -55,6 +55,7 @@ function prepareShortWindowsStage() {
     '.claude',
     '.expo',
     '.git',
+    '.mobile-template-git',
     'android',
     'dist',
     'ios',

@@ -3,7 +3,6 @@ import { useNavigation } from '@react-navigation/native';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../app/AppProvider';
-import { DemoNetworkControl } from '../components/DemoNetworkControl';
 import { Icon } from '../components/Icon';
 import { LedgerRow } from '../components/LedgerRow';
 import { PeriodHeader } from '../components/PeriodHeader';
@@ -18,14 +17,13 @@ const weekDates = ['2026-08-24', '2026-08-25', '2026-08-26', '2026-08-27', '2026
 
 export function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { entries, isOnline, isSyncing } = useApp();
+  const { entries, connectionStatus, isSyncing } = useApp();
   const weekEntries = entries.filter((entry) => entry.periodId === HOME_SNAPSHOT_PERIOD_ID && weekDates.includes(entry.workDate));
   const totalHours = calculateEntriesTotalMinutes(weekEntries) / 60;
   return (
     <SafeAreaView style={sharedStyles.page} edges={['top']}>
       <ScrollView contentContainerStyle={sharedStyles.scrollContent} showsVerticalScrollIndicator={false}>
-        <ScreenHeader kind="brand" online={isOnline} syncing={isSyncing} />
-        <DemoNetworkControl quiet />
+        <ScreenHeader kind="brand" online={connectionStatus} syncing={isSyncing} />
         <PeriodHeader totalHours={totalHours} />
         <View style={styles.ledger}>
           {weekDates.map((date) => {
@@ -52,7 +50,7 @@ export function HomeScreen() {
           label="Add hours"
           icon="plus"
           onPress={() => navigation.navigate('AddHours')}
-          accessibilityHint="Opens the time entry form. Set Demo network to Offline first to try local saving."
+          accessibilityHint="Opens the time entry form. Entries save locally and synchronize automatically when connected."
         />
       </ScrollView>
     </SafeAreaView>

@@ -104,7 +104,7 @@ async function executeRemote(
   const isCreate = operation.operationType === 'CREATE_TIME_ENTRY';
   const serverEntryId = isCreate ? null : await resolveServerEntryId(apiUrl, entry);
   const path = isCreate
-    ? '/v1/time-entries'
+    ? '/v1/reviewer/time-entries'
     : `/v1/time-entries/${encodeURIComponent(serverEntryId ?? entry.id)}/confirm`;
   try {
     const body = await fetchJson(`${apiUrl}${path}`, {

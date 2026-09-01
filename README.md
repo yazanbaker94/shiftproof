@@ -13,13 +13,13 @@ It is a portfolio project, not a Wagepoint product. Wagepoint did not commission
 - [Download the Android reviewer APK](https://github.com/yazanbaker94/shiftproof/releases/latest/download/shiftproof-release-arm64-v8a.apk)
 - [Browse the source and documentation](https://github.com/yazanbaker94/shiftproof)
 
-The Android APK is an ARM64 reviewer build for modern physical Android devices. Its API endpoint is the same HTTPS deployment used by the manager review.
+The Android APK is an ARM64 reviewer build for modern physical Android devices. It uses the same HTTPS API deployment as the manager review, while each mobile-created record gets an isolated reviewer ledger so the shared public scenario remains deterministic.
 
 ## What to review
 
 | Surface | Role in the demo | What it proves |
 | --- | --- | --- |
-| `apps/mobile` | Employee Android app | SQLite durability, an explicit demo network control, a persisted retry queue, stable request IDs, and accessible status marks |
+| `apps/mobile` | Employee Android app | SQLite durability, automatic connectivity-aware synchronization, a persisted retry queue, stable request IDs, and accessible status marks |
 | `apps/api` | Fastify service | Validated REST commands, idempotent creates, operation recovery, review decisions, and append-only evidence |
 | `apps/web` | Case study and manager ledger | A reviewer can inspect the unusual entry and approve or return it; the UI labels whether it is using the API or an isolated preview |
 | `packages/contracts` | Shared vocabulary | Zod schemas and TypeScript types for entries, timesheets, operations, revisions, and events |
@@ -29,10 +29,10 @@ The design is intentionally narrow: one reliable workflow is implemented end to 
 
 ## The 90-second flow
 
-1. In the Android app, switch **Demo network** to **Offline**.
+1. In **Profile → Reviewer controls**, choose **Simulate offline**. This control is intentionally kept out of the employee's normal workflow.
 2. Add or edit hours and save. SQLite commits the entry and its outbound operation in one transaction.
 3. The app shows a local proof slip only after that transaction completes.
-4. Return **Demo network** to **Online**. With an API URL configured, the queued command is sent over HTTP with the same idempotency key on every retry.
+4. Choose **Automatic** again. If the device has internet, the queued command synchronizes without a manual button and uses the same idempotency key on every retry.
 5. Load or record the `16.0 h` example. ShiftProof flags it using an explicitly demo-only review heuristic.
 6. Add context and submit the entry for review.
 7. In the web manager ledger, inspect the entry and choose **Approve** or **Return**.

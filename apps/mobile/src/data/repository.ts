@@ -9,7 +9,7 @@ import type {
   TimeEntry,
 } from '../domain/types';
 import { DEMO_PERIOD_ID, HOME_SNAPSHOT_PERIOD_ID, REVIEW_SNAPSHOT_PERIOD_ID } from './database';
-import { nextAttemptIso, shouldAttempt } from './queuePolicy';
+import { nextAttemptIso, nextQueueWakeDelayMs, shouldAttempt } from './queuePolicy';
 
 type EntryRow = {
   id: string;
@@ -214,6 +214,27 @@ export async function listDueOperations(db: SQLiteDatabase): Promise<SyncOperati
      ORDER BY created_at ASC`,
   );
   return rows.map(mapOperation).filter((row) => shouldAttempt(row.status, row.nextAttemptAt));
+}
+
+export interface SyncQueueSnapshot {
+  pendingCount: number;
+  nextWakeAtMs: number | null;
+}
+
+export async function getSyncQueueSnapshot(db: SQLiteDatabase): Promise<SyncQueueSnapshot> {
+  const rows = await db.getAllAsync<Pick<OperationRow, 'status' | 'next_attempt_at'>>(
+    `SELECT status, next_attempt_at FROM sync_operations
+     WHERE status IN ('PENDING', 'SYNCING', 'WAITING_RETRY')`,
+  );
+  const nowMs = Date.now();
+  const delayMs = nextQueueWakeDelayMs(rows.map((row) => ({
+    status: row.status,
+    nextAttemptAt: row.next_attempt_at,
+  })), nowMs);
+  return {
+    pendingCount: rows.length,
+    nextWakeAtMs: delayMs === null ? null : nowMs + delayMs,
+  };
 }
 
 export async function markOperationSyncing(db: SQLiteDatabase, operationId: string): Promise<void> {

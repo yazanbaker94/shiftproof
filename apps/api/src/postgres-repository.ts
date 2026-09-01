@@ -161,6 +161,45 @@ export class PostgresShiftProofRepository implements ShiftProofRepository {
     return this.getOperationWith(this.pool, key);
   }
 
+  async ensureReviewerTimesheet(
+    id: string,
+    employeeId: string,
+    workDate: string,
+  ): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const timestamp = new Date().toISOString();
+      await client.query(
+        `INSERT INTO timesheets (
+           id, employee_id, period_start, period_end, period_label, status,
+           revision, created_at, updated_at
+         ) VALUES ($1,$2,$3,$3,$4,'draft',1,$5,$5)
+         ON CONFLICT (id) DO NOTHING`,
+        [id, employeeId, workDate, `Reviewer run / ${workDate}`, timestamp],
+      );
+      await client.query(
+        `INSERT INTO timesheet_revisions (
+           id, timesheet_id, revision, status, action, actor_id, note, created_at
+         ) VALUES ($1,$2,1,'draft','REVIEWER_RUN_CREATED',$3,$4,$5)
+         ON CONFLICT (timesheet_id, revision) DO NOTHING`,
+        [
+          randomUUID(),
+          id,
+          employeeId,
+          "Isolated mobile reviewer run",
+          timestamp,
+        ],
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async createTimeEntryIdempotent(
     body: CreateTimeEntryBody,
     operationKey: string,

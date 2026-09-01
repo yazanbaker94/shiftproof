@@ -12,16 +12,16 @@ import { colors, fonts, radius, sharedStyles } from '../theme';
 
 export function HistoryScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { entries, isOnline, isSyncing } = useApp();
+  const { entries, connectionStatus, isSyncing, pendingOperationCount } = useApp();
   const syncedCount = entries.filter((entry) => entry.receiptId).length;
   return (
     <SafeAreaView style={sharedStyles.page} edges={['top']}>
       <ScrollView contentContainerStyle={sharedStyles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}><ProofMark /><ConnectivityStatus online={isOnline} syncing={isSyncing} /></View>
+        <View style={styles.header}><ProofMark /><ConnectivityStatus online={connectionStatus} syncing={isSyncing} /></View>
         <Text style={styles.title}>Proof history</Text>
         <Text style={styles.intro}>Every saved, synced, reviewed and approved state leaves a visible record.</Text>
         <View style={styles.timeline}>
-          <TimelineRow icon="phone" eyebrow="LOCAL PROOF" title="Entry saved on device" detail={`${entries.filter((entry) => entry.status === 'PENDING_SYNC').length} waiting to sync`} color={colors.blue} />
+          <TimelineRow icon="phone" eyebrow="LOCAL PROOF" title="Entry saved on device" detail={`${pendingOperationCount} waiting to sync`} color={colors.blue} />
           <TimelineRow icon="cloud" eyebrow="SYNC RECEIPTS" title="Matched with the server" detail={`${syncedCount} durable sync receipts`} color={colors.green} />
           <TimelineRow icon="shield" eyebrow="PAYROLL PROOF" title="Approved timesheet" detail="Receipt SP-82F14 · Sep 01, 2026" color={colors.green} last />
         </View>
