@@ -123,5 +123,10 @@ console.log(`APK: ${destination}`);
 console.log(`SHA-256: ${checksum}`);
 
 if (shouldStage && process.env.SHIFTPROOF_KEEP_ANDROID_STAGE !== '1') {
-  rmSync(buildRoot, { recursive: true, force: true });
+  rmSync(buildRoot, {
+    recursive: true,
+    force: true,
+    maxRetries: 8,
+    retryDelay: 250,
+  });
 }

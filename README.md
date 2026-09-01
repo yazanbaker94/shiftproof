@@ -42,9 +42,9 @@ For the exact reviewer path and the meaning of each mode, see [Reviewer demo scr
 
 ## Verified evidence
 
-| Offline save on Android | Confirmed online synchronization |
-| --- | --- |
-| ![ShiftProof saved offline on Android](docs/screenshots/mobile/saved-offline.png) | ![ShiftProof synchronized with the API](docs/screenshots/mobile/synced-online.png) |
+| Offline save on Android | Confirmed automatic synchronization | Reviewer-only network simulation |
+| --- | --- | --- |
+| ![ShiftProof saved offline on Android](docs/screenshots/mobile/saved-offline.png) | ![ShiftProof synchronized automatically with the API](docs/screenshots/mobile/synced-online.png) | ![ShiftProof reviewer controls](docs/screenshots/mobile/reviewer-controls.png) |
 
 | Manager review | Approval recorded |
 | --- | --- |
