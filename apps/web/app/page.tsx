@@ -66,6 +66,7 @@ export default function Home() {
               height={2424}
               priority
               src="/shiftproof-android-timesheet-approved.png"
+              unoptimized
               width={1080}
             />
           </div>
